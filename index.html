@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aegis - Advanced Cryptographic Steganography</title>
+    <style>
+        :root {
+            --bg: #0f1115;
+            --panel: #1a1d24;
+            --border: #2a2e39;
+            --primary: #3b82f6;
+            --primary-hover: #2563eb;
+            --text: #e2e8f0;
+            --text-muted: #94a3b8;
+            --error: #ef4444;
+            --success: #22c55e;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
+        
+        body { background-color: var(--bg); color: var(--text); display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; }
+        
+        .container { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; width: 100%; max-width: 800px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); overflow: hidden; }
+        
+        .header { padding: 20px 30px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+        .header h1 { font-size: 1.5rem; font-weight: 600; letter-spacing: -0.025em; }
+        .badge { background: rgba(59, 130, 246, 0.1); color: var(--primary); padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }
+
+        .tabs { display: flex; border-bottom: 1px solid var(--border); background: #15181e; }
+        .tab { flex: 1; padding: 15px; text-align: center; cursor: pointer; color: var(--text-muted); font-weight: 500; transition: 0.2s; }
+        .tab:hover { color: var(--text); background: var(--panel); }
+        .tab.active { color: var(--primary); border-bottom: 2px solid var(--primary); background: var(--panel); }
+
+        .content { padding: 30px; display: none; }
+        .content.active { display: block; }
+
+        .form-group { margin-bottom: 20px; }
+        .form-group label { display: block; margin-bottom: 8px; font-size: 0.875rem; color: var(--text-muted); font-weight: 500; }
+        
+        input[type="file"] { width: 100%; padding: 10px; background: var(--bg); border: 1px dashed var(--border); border-radius: 6px; color: var(--text); cursor: pointer; }
+        textarea, input[type="password"] { width: 100%; padding: 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); outline: none; transition: 0.2s; }
+        textarea:focus, input[type="password"]:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2); }
+        textarea { resize: vertical; min-height: 100px; }
+
+        .btn { width: 100%; padding: 14px; background: var(--primary); color: white; border: none; border-radius: 6px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: 0.2s; margin-top: 10px; }
+        .btn:hover { background: var(--primary-hover); }
+        .btn:disabled { background: var(--border); color: var(--text-muted); cursor: not-allowed; }
+
+        .status { margin-top: 15px; padding: 12px; border-radius: 6px; font-size: 0.875rem; display: none; }
+        .status.error { background: rgba(239, 68, 68, 0.1); color: var(--error); border: 1px solid rgba(239, 68, 68, 0.2); display: block; }
+        .status.success { background: rgba(34, 197, 94, 0.1); color: var(--success); border: 1px solid rgba(34, 197, 94, 0.2); display: block; }
+        
+        .preview-img { max-width: 100%; max-height: 200px; margin-top: 10px; border-radius: 6px; display: none; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <h1>Aegis Core</h1>
+        <span class="badge">AES-256-GCM / LSB</span>
+    </div>
+    
+    <div class="tabs">
+        <div class="tab active" onclick="switchTab('encode')">Encrypt & Embed</div>
+        <div class="tab" onclick="switchTab('decode')">Extract & Decrypt</div>
+    </div>
+
+    <!-- ENCODE SECTION -->
+    <div id="encode" class="content active">
+        <div class="form-group">
+            <label>Carrier Image (PNG/JPG)</label>
+            <input type="file" id="enc-img" accept="image/png, image/jpeg" onchange="previewImage(this, 'enc-preview')">
+            <img id="enc-preview" class="preview-img">
+        </div>
+        <div class="form-group">
+            <label>Highly Confidential Payload (Text)</label>
+            <textarea id="enc-text" placeholder="Enter the sensitive data to be concealed..."></textarea>
+        </div>
+        <div class="form-group">
+            <label>Encryption Password</label>
+            <input type="password" id="enc-pass" placeholder="Used to derive AES-256 key via PBKDF2">
+        </div>
+        <button class="btn" id="enc-btn" onclick="processEncode()">Generate Secure Image</button>
+        <div id="enc-status" class="status"></div>
+    </div>
+
+    <!-- DECODE SECTION -->
+    <div id="decode" class="content">
+        <div class="form-group">
+            <label>Stego Image (PNG Only)</label>
+            <input type="file" id="dec-img" accept="image/png" onchange="previewImage(this, 'dec-preview')">
+            <img id="dec-preview" class="preview-img">
+        </div>
+        <div class="form-group">
+            <label>Decryption Password</label>
+            <input type="password" id="dec-pass" placeholder="Required to authenticate and decrypt">
+        </div>
+        <button class="btn" id="dec-btn" onclick="processDecode()">Extract Payload</button>
+        <div class="form-group" style="margin-top: 20px;">
+            <label>Extracted Payload</label>
+            <textarea id="dec-text" readonly placeholder="Decrypted data will appear here..."></textarea>
+        </div>
+        <div id="dec-status" class="status"></div>
+    </div>
+</div>
+
+<script>
+    // --- UI Logic ---
+    function switchTab(tabId) {
+        document.querySelectorAll('.content').forEach(c => c.classList.remove('active'));
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.getElementById(tabId).classList.add('active');
+        event.currentTarget.classList.add('active');
+    }
+
+    function previewImage(input, previewId) {
+        const file = input.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = document.getElementById(previewId);
+                img.src = e.target.result;
+                img.style.display = 'block';
+            }
+            reader.readAsDataURL(file);
+        }
+    }
+
+    function showStatus(type, msg, isError = false) {
+        const el = document.getElementById(`${type}-status`);
+        el.className = `status ${isError ? 'error' : 'success'}`;
+        el.innerText = msg;
+    }
+
+    // --- Advanced Cryptography (Web Crypto API) ---
+    const SALT = new TextEncoder().encode("AEGIS_ENTERPRISE_B2B_SALT"); // Fixed salt for this app instance
+    const MAGIC_HEADER = new Uint8Array([0x41, 0x45, 0x47, 0x49]); // "AEGI"
+
+    async function deriveKey(password) {
+        const enc = new TextEncoder();
+        const keyMaterial = await crypto.subtle.importKey(
+            "raw", enc.encode(password), {name: "PBKDF2"}, false, ["deriveKey"]
+        );
+        return crypto.subtle.deriveKey(
+            {name: "PBKDF2", salt: SALT, iterations: 100000, hash: "SHA-256"},
+            keyMaterial, {name: "AES-GCM", length: 256}, false, ["encrypt", "decrypt"]
+        );
+    }
+
+    async function encryptData(text, password) {
+        const key = await deriveKey(password);
+        const iv = crypto.getRandomValues(new Uint8Array(12));
+        const encodedText = new TextEncoder().encode(text);
+        
+        const ciphertext = await crypto.subtle.encrypt(
+            {name: "AES-GCM", iv: iv}, key, encodedText
+        );
+        
+        // Payload Structure: [MAGIC 4 bytes] [IV 12 bytes] [Ciphertext N bytes]
+        const ciphertextArray = new Uint8Array(ciphertext);
+        const payload = new Uint8Array(MAGIC_HEADER.length + iv.length + ciphertextArray.length);
+        
+        payload.set(MAGIC_HEADER, 0);
+        payload.set(iv, MAGIC_HEADER.length);
+        payload.set(ciphertextArray, MAGIC_HEADER.length + iv.length);
+        
+        return payload;
+    }
+
+    async function decryptData(payload, password) {
+        // Verify Magic
+        for (let i=0; i<4; i++) {
+            if (payload[i] !== MAGIC_HEADER[i]) throw new Error("Invalid or corrupted stego image.");
+        }
+        
+        const key = await deriveKey(password);
+        const iv = payload.slice(4, 16);
+        const ciphertext = payload.slice(16);
+        
+        try {
+            const decrypted = await crypto.subtle.decrypt(
+                {name: "AES-GCM", iv: iv}, key, ciphertext
+            );
+            return new TextDecoder().decode(decrypted);
+        } catch (e) {
+            throw new Error("Authentication failed: Incorrect password or tampered data.");
+        }
+    }
+
+    // --- LSB Steganography Engine ---
+    function getImageData(file) {
+        return new Promise((resolve) => {
+            const img = new Image();
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = img.width; canvas.height = img.height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0);
+                    resolve({ ctx, canvas, imgData: ctx.getImageData(0, 0, canvas.width, canvas.height) });
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
+    // Converts Uint8Array to an array of 1s and 0s
+    function bytesToBits(bytes) {
+        const bits = [];
+        for (let i = 0; i < bytes.length; i++) {
+            for (let j = 7; j >= 0; j--) {
+                bits.push((bytes[i] >> j) & 1);
+            }
+        }
+        return bits;
+    }
+
+    // Converts array of 1s and 0s back to Uint8Array
+    function bitsToBytes(bits) {
+        const bytes = new Uint8Array(Math.floor(bits.length / 8));
+        for (let i = 0; i < bytes.length; i++) {
+            let byte = 0;
+            for (let j = 0; j < 8; j++) {
+                byte |= (bits[i * 8 + j] << (7 - j));
+            }
+            bytes[i] = byte;
+        }
+        return bytes;
+    }
+
+    async function processEncode() {
+        try {
+            const file = document.getElementById('enc-img').files[0];
+            const text = document.getElementById('enc-text').value;
+            const pass = document.getElementById('enc-pass').value;
+
+            if (!file || !text || !pass) throw new Error("All fields are required.");
+
+            showStatus('enc', "Encrypting and embedding...", false);
+            
+            // 1. Encrypt Payload
+            const encryptedPayload = await encryptData(text, pass);
+            
+            // 2. Prep data structure: [32-bit Length] + [Encrypted Data]
+            const payloadLength = encryptedPayload.length;
+            const lengthBytes = new Uint8Array([
+                (payloadLength >> 24) & 255, (payloadLength >> 16) & 255,
+                (payloadLength >> 8) & 255, payloadLength & 255
+            ]);
+            
+            const fullData = new Uint8Array(4 + payloadLength);
+            fullData.set(lengthBytes, 0);
+            fullData.set(encryptedPayload, 4);
+            
+            const bits = bytesToBits(fullData);
+
+            // 3. Embed into Image
+            const { ctx, canvas, imgData } = await getImageData(file);
+            const data = imgData.data;
+            
+            // Capacity Check (RGB channels only, skip Alpha to preserve transparency rules)
+            const capacity = (data.length / 4) * 3; 
+            if (bits.length > capacity) throw new Error(`Payload too large. Max capacity: ${Math.floor(capacity/8)} bytes.`);
+
+            let bitIdx = 0;
+            for (let i = 0; i < data.length && bitIdx < bits.length; i++) {
+                if ((i + 1) % 4 === 0) continue; // Skip Alpha channel
+                
+                // Clear LSB and set to our bit
+                data[i] = (data[i] & ~1) | bits[bitIdx];
+                bitIdx++;
+            }
+
+            ctx.putImageData(imgData, 0, 0);
+
+            // 4. Download as PNG
+            const link = document.createElement('a');
+            link.download = `secure_stego_${Date.now()}.png`;
+            link.href = canvas.toDataURL('image/png'); // MUST BE PNG
+            link.click();
+
+            showStatus('enc', "Success! Image encoded and downloaded as PNG.", false);
+        } catch (e) {
+            showStatus('enc', e.message, true);
+        }
+    }
+
+    async function processDecode() {
+        try {
+            const file = document.getElementById('dec-img').files[0];
+            const pass = document.getElementById('dec-pass').value;
+
+            if (!file || !pass) throw new Error("Image and Password are required.");
+            if (file.type !== "image/png") throw new Error("Only PNG files are supported for decryption.");
+
+            showStatus('dec', "Extracting and decrypting...", false);
+            document.getElementById('dec-text').value = "";
+
+            // 1. Extract from Image
+            const { imgData } = await getImageData(file);
+            const data = imgData.data;
+
+            // Read first 32 bits (4 bytes) to get payload length
+            const lengthBits = [];
+            let dataIdx = 0;
+            while (lengthBits.length < 32 && dataIdx < data.length) {
+                if ((dataIdx + 1) % 4 !== 0) { // Skip Alpha
+                    lengthBits.push(data[dataIdx] & 1);
+                }
+                dataIdx++;
+            }
+
+            const lengthBytes = bitsToBytes(lengthBits);
+            const payloadLength = (lengthBytes[0] << 24) | (lengthBytes[1] << 16) | (lengthBytes[2] << 8) | lengthBytes[3];
+
+            // Sanity check length to prevent memory crashes from bad files
+            if (payloadLength <= 0 || payloadLength > 10000000) throw new Error("No valid hidden data found in this image.");
+
+            // Read the rest of the bits
+            const payloadBits = [];
+            const targetBitLength = payloadLength * 8;
+            
+            while (payloadBits.length < targetBitLength && dataIdx < data.length) {
+                if ((dataIdx + 1) % 4 !== 0) { // Skip Alpha
+                    payloadBits.push(data[dataIdx] & 1);
+                }
+                dataIdx++;
+            }
+
+            if (payloadBits.length < targetBitLength) throw new Error("Image data truncated or corrupted.");
+
+            const encryptedPayload = bitsToBytes(payloadBits);
+
+            // 2. Decrypt Payload
+            const plaintext = await decryptData(encryptedPayload, pass);
+            
+            document.getElementById('dec-text').value = plaintext;
+            showStatus('dec', "Success! Payload authenticated and decrypted.", false);
+
+        } catch (e) {
+            showStatus('dec', e.message, true);
+        }
+    }
+</script>
+</body>
+</html>
