@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aegis · 8b — Hex Dump Viewer</title>
+<style>
+  :root {
+    --bg:#0f1115; --panel:#1a1d24; --border:#2a2e39;
+    --primary:#3b82f6; --primary-hover:#2563eb;
+    --text:#e2e8f0; --text-muted:#94a3b8;
+    --error:#ef4444; --success:#22c55e; --warning:#f59e0b;
+    --mono:'Fira Code','Courier New',monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',system-ui,sans-serif;}
+  body{background:var(--bg);color:var(--text);padding:30px;min-height:100vh;}
+  h2{font-size:1.4rem;margin-bottom:6px;}
+  .subtitle{color:var(--text-muted);font-size:.85rem;margin-bottom:24px;}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:24px;max-width:960px;margin:0 auto 28px;}
+  .card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px;}
+  .card-header h3{font-size:1.1rem;margin:0;}
+  .badge{padding:3px 10px;border-radius:20px;font-size:.7rem;font-weight:700;text-transform:uppercase;background:rgba(34,197,94,.15);color:var(--success);}
+  .fg{margin-bottom:16px;}
+  label{display:block;margin-bottom:7px;font-size:.85rem;color:var(--text-muted);font-weight:500;}
+  select{padding:7px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:.85rem;cursor:pointer;}
+  select:focus{outline:none;border-color:var(--primary);}
+  .drop-zone{border:2px dashed var(--border);border-radius:8px;padding:32px 20px;text-align:center;cursor:pointer;transition:.2s;background:rgba(255,255,255,.01);}
+  .drop-zone:hover,.drop-zone.over{border-color:var(--primary);background:rgba(59,130,246,.06);}
+  .drop-zone p{color:var(--text-muted);font-size:.9rem;pointer-events:none;}
+  .drop-zone input{display:none;}
+  .file-badge{display:inline-flex;align-items:center;gap:8px;margin-top:10px;padding:7px 14px;background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.3);border-radius:6px;font-size:.8rem;color:var(--primary);font-family:var(--mono);}
+  .btn{display:inline-flex;align-items:center;gap:7px;padding:10px 18px;background:var(--primary);color:#fff;border:none;border-radius:6px;font-size:.9rem;font-weight:600;cursor:pointer;transition:background .2s;}
+  .btn:hover{background:var(--primary-hover);}
+  .btn:disabled{background:var(--border);color:var(--text-muted);cursor:not-allowed;}
+  .btn-sm{background:transparent;border:1px solid var(--border);color:var(--text);padding:7px 13px;font-size:.82rem;}
+  .btn-sm:hover{background:var(--border);}
+  .btn-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}
+  .spinner{width:15px;height:15px;border:2px solid rgba(255,255,255,.3);border-radius:50%;border-top-color:#fff;animation:spin .7s linear infinite;display:none;}
+  .btn.loading .spinner{display:inline-block;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .status{margin-top:12px;padding:10px 14px;border-radius:6px;font-size:.85rem;display:none;}
+  .status.ok{background:rgba(34,197,94,.1);color:var(--success);border:1px solid rgba(34,197,94,.25);display:block;}
+  .status.err{background:rgba(239,68,68,.1);color:var(--error);border:1px solid rgba(239,68,68,.25);display:block;}
+  /* Options row */
+  .opts-row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px;}
+  .opts-row label{margin:0;font-size:.83rem;white-space:nowrap;}
+  /* Hex dump */
+  .hex-wrap{background:var(--bg);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-top:16px;}
+  .hex-header{display:grid;padding:8px 14px;background:rgba(0,0,0,.3);font-size:.72rem;font-family:var(--mono);color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--border);}
+  .hex-body{max-height:520px;overflow-y:auto;overflow-x:auto;}
+  .hex-row{display:grid;padding:3px 14px;font-family:var(--mono);font-size:.8rem;line-height:1.8;transition:background .1s;}
+  .hex-row:hover{background:rgba(59,130,246,.06);}
+  .hex-row:nth-child(even){background:rgba(255,255,255,.015);}
+  .hex-row:nth-child(even):hover{background:rgba(59,130,246,.06);}
+  .col-offset{color:#6b7280;min-width:0;}
+  .col-hex{min-width:0;letter-spacing:.08em;}
+  .col-ascii{min-width:0;color:var(--text-muted);}
+  /* Byte colouring */
+  .b-null{color:#374151;}         /* 0x00 */
+  .b-print{color:#93c5fd;}        /* printable ASCII */
+  .b-ctrl{color:#fcd34d;}         /* control chars */
+  .b-high{color:#f87171;}         /* > 127 */
+  .b-space{color:#a3e635;}        /* space/CR/LF/TAB */
+  /* Search highlight */
+  .b-match{background:rgba(245,158,11,.35);border-radius:2px;}
+  /* File info bar */
+  .info-bar{display:flex;gap:14px;flex-wrap:wrap;padding:10px 14px;background:rgba(0,0,0,.2);font-size:.78rem;font-family:var(--mono);border-bottom:1px solid var(--border);}
+  .info-item{color:var(--text-muted);}
+  .info-item span{color:var(--primary);font-weight:700;}
+  /* Search box */
+  .search-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px;}
+  .search-row input{flex:1;min-width:160px;padding:8px 11px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--mono);font-size:.85rem;}
+  .search-row input:focus{outline:none;border-color:var(--primary);}
+  .search-count{font-size:.8rem;color:var(--text-muted);white-space:nowrap;}
+  details{margin-top:22px;padding:14px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:6px;font-size:.83rem;color:var(--text-muted);}
+  details summary{cursor:pointer;font-weight:600;color:var(--text);}
+  details p{margin-top:10px;line-height:1.6;}
+  code{background:rgba(255,255,255,.07);padding:1px 5px;border-radius:3px;font-family:var(--mono);}
+</style>
+</head>
+<body>
+<div style="max-width:960px;margin:0 auto;">
+  <h2>8b — Hex Dump Viewer</h2>
+  <p class="subtitle">Professional hex editor view · offset | hex bytes | ASCII · byte colouring · search</p>
+
+  <div class="card">
+    <div class="card-header">
+      <h3>Hex Dump</h3>
+      <span class="badge">Hex Editor</span>
+    </div>
+
+    <div class="fg">
+      <label>File to inspect</label>
+      <div class="drop-zone" id="file-drop"
+           ondragover="onDragOver(event,'file-drop')" ondragleave="onDragLeave('file-drop')"
+           ondrop="onFileDrop(event)">
+        <p>Drag &amp; drop any file — binary, image, text, executable…</p>
+        <input type="file" id="file-in" onchange="onFileSelect(this)" onclick="event.stopPropagation()">
+        <div id="file-badge"></div>
+      </div>
+    </div>
+
+    <div class="opts-row">
+      <label>Bytes per row:</label>
+      <select id="bpr-select" onchange="redraw()">
+        <option value="8">8</option>
+        <option value="16" selected>16</option>
+        <option value="32">32</option>
+      </select>
+      <label>Offset format:</label>
+      <select id="off-select" onchange="redraw()">
+        <option value="hex" selected>Hex</option>
+        <option value="dec">Decimal</option>
+      </select>
+      <label>Max rows:</label>
+      <select id="rows-select" onchange="redraw()">
+        <option value="256">256 rows</option>
+        <option value="512" selected>512 rows</option>
+        <option value="1024">1024 rows</option>
+        <option value="0">All (slow on large files)</option>
+      </select>
+    </div>
+
+    <button class="btn" id="load-btn" onclick="loadFile()">
+      <span class="spinner"></span> Load &amp; Render Hex Dump
+    </button>
+    <div id="load-status" class="status"></div>
+
+    <div id="dump-wrap" style="display:none;margin-top:4px;">
+      <!-- Search -->
+      <div class="search-row" style="margin-top:14px;">
+        <input type="text" id="search-in" placeholder="Search hex (e.g. FF D8 FF) or ASCII text…" oninput="doSearch()">
+        <span class="search-count" id="search-count"></span>
+        <button class="btn btn-sm" onclick="copyDump()">Copy dump</button>
+        <button class="btn btn-sm" onclick="downloadDump()">⬇ Download .txt</button>
+      </div>
+
+      <!-- Info bar -->
+      <div class="info-bar" id="info-bar"></div>
+
+      <!-- Hex dump -->
+      <div class="hex-wrap">
+        <div class="hex-header" id="hex-header"></div>
+        <div class="hex-body" id="hex-body"></div>
+      </div>
+
+      <!-- Legend -->
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:10px;font-size:.75rem;font-family:var(--mono);">
+        <span><span style="color:#374151">█</span> 0x00 null</span>
+        <span><span style="color:#a3e635">█</span> Whitespace</span>
+        <span><span style="color:#93c5fd">█</span> Printable ASCII</span>
+        <span><span style="color:#fcd34d">█</span> Control chars</span>
+        <span><span style="color:#f87171">█</span> High bytes (>127)</span>
+      </div>
+    </div>
+
+    <details>
+      <summary>Reading a hex dump</summary>
+      <p>
+        Each row shows: <strong>Offset</strong> (byte position from file start in hex or decimal),
+        <strong>Hex bytes</strong> (raw byte values in hexadecimal, grouped by the selected row width),
+        and <strong>ASCII panel</strong> (printable characters shown as-is, non-printable bytes shown
+        as <code>.</code>).
+        Colour coding helps spot patterns: null bytes, whitespace, printable text, control characters,
+        and high-range bytes are each distinctly coloured. The search field accepts either
+        space-separated hex pairs (e.g. <code>FF D8 FF E0</code>) or plain ASCII text.
+      </p>
+    </details>
+  </div>
+</div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────────
+let _fileBytes = null;
+let _fileName  = '';
+let _rawDump   = '';
+
+// ── UI helpers ────────────────────────────────────────────────────────────────
+function onDragOver(e, id) { e.preventDefault(); document.getElementById(id).classList.add('over'); }
+function onDragLeave(id)   { document.getElementById(id).classList.remove('over'); }
+function onFileDrop(e) {
+  e.preventDefault(); onDragLeave('file-drop');
+  const f = e.dataTransfer.files[0]; if (!f) return;
+  try { const dt = new DataTransfer(); dt.items.add(f); document.getElementById('file-in').files = dt.files; } catch(_) {}
+  showBadge(f);
+}
+function onFileSelect(input) { if (input.files[0]) showBadge(input.files[0]); }
+function showBadge(f) {
+  document.getElementById('file-badge').innerHTML =
+    `<div class="file-badge">📄 ${f.name} · ${fmtSize(f.size)}</div>`;
+}
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('file-drop').addEventListener('click', () =>
+    document.getElementById('file-in').click());
+});
+function fmtSize(n) {
+  if (n < 1024) return n + ' B';
+  if (n < 1048576) return (n/1024).toFixed(1) + ' KB';
+  return (n/1048576).toFixed(2) + ' MB';
+}
+function setLoading(id, on) {
+  const b = document.getElementById(id); b.disabled = on;
+  on ? b.classList.add('loading') : b.classList.remove('loading');
+}
+function showStatus(id, msg, isErr) {
+  const el = document.getElementById(id);
+  el.textContent = msg; el.className = 'status ' + (isErr ? 'err' : 'ok');
+  setTimeout(() => { el.style.display = 'none'; }, 7000);
+}
+
+// ── Byte colour class ──────────────────────────────────────────────────────────
+function byteClass(b) {
+  if (b === 0)                          return 'b-null';
+  if (b === 9 || b === 10 || b === 13 || b === 32) return 'b-space';
+  if (b >= 33 && b <= 126)              return 'b-print';
+  if (b < 32 || b === 127)              return 'b-ctrl';
+  return 'b-high';
+}
+function byteChar(b) {
+  if (b >= 32 && b <= 126) return String.fromCharCode(b);
+  if (b === 9)  return '→';
+  if (b === 10) return '↵';
+  if (b === 13) return '↵';
+  return '.';
+}
+
+// ── Load file ─────────────────────────────────────────────────────────────────
+async function loadFile() {
+  const f = document.getElementById('file-in').files[0];
+  if (!f) return showStatus('load-status', 'Please select a file first.', true);
+  setLoading('load-btn', true);
+  try {
+    _fileBytes = new Uint8Array(await f.arrayBuffer());
+    _fileName  = f.name;
+    redraw();
+    document.getElementById('dump-wrap').style.display = 'block';
+    showStatus('load-status', `✔ Loaded "${f.name}" — ${_fileBytes.length.toLocaleString()} bytes.`, false);
+  } catch (e) {
+    showStatus('load-status', 'Failed to read file: ' + e.message, true);
+  } finally {
+    setLoading('load-btn', false);
+  }
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+function redraw() {
+  if (!_fileBytes) return;
+  const BPR     = parseInt(document.getElementById('bpr-select').value);
+  const offFmt  = document.getElementById('off-select').value;
+  const maxRows = parseInt(document.getElementById('rows-select').value);
+  const bytes   = _fileBytes;
+  const total   = bytes.length;
+  const numRows = Math.ceil(total / BPR);
+  const limit   = maxRows === 0 ? numRows : Math.min(numRows, maxRows);
+
+  // Info bar
+  const nulls     = bytes.filter(b => b === 0).length;
+  const printable = bytes.filter(b => b >= 32 && b <= 126).length;
+  document.getElementById('info-bar').innerHTML = `
+    <span class="info-item">File: <span>${_fileName}</span></span>
+    <span class="info-item">Size: <span>${fmtSize(total)}</span></span>
+    <span class="info-item">Bytes: <span>${total.toLocaleString()}</span></span>
+    <span class="info-item">Null bytes: <span>${nulls.toLocaleString()}</span></span>
+    <span class="info-item">Printable: <span>${(printable/total*100).toFixed(1)}%</span></span>
+    <span class="info-item">Rows shown: <span>${limit.toLocaleString()} of ${numRows.toLocaleString()}</span></span>
+  `;
+
+  // Header
+  let headerCols = `auto `; // offset
+  headerCols += `repeat(${BPR}, 1fr) `; // hex
+  headerCols += `1fr`; // ascii
+  document.getElementById('hex-header').style.gridTemplateColumns = headerCols;
+  let hdrHtml = '<span>Offset</span>';
+  for (let i = 0; i < BPR; i++) hdrHtml += `<span>${i.toString(16).toUpperCase().padStart(2,'0')}</span>`;
+  hdrHtml += '<span>ASCII</span>';
+  document.getElementById('hex-header').innerHTML = hdrHtml;
+
+  // Body
+  const frag = document.createDocumentFragment();
+  let plainDump = '';
+
+  for (let row = 0; row < limit; row++) {
+    const off     = row * BPR;
+    const rowData = bytes.slice(off, off + BPR);
+    const offStr  = offFmt === 'hex'
+      ? off.toString(16).toUpperCase().padStart(8, '0')
+      : off.toString().padStart(10, '0');
+
+    const div = document.createElement('div');
+    div.className = 'hex-row';
+    div.id        = `hr${row}`;
+    div.style.gridTemplateColumns = headerCols;
+
+    // Offset
+    let html = `<span class="col-offset">${offStr}</span>`;
+
+    // Hex bytes
+    let hexStr = '', ascStr = '';
+    for (let i = 0; i < BPR; i++) {
+      if (i < rowData.length) {
+        const b   = rowData[i];
+        const hex = b.toString(16).toUpperCase().padStart(2,'0');
+        const cls = byteClass(b);
+        html   += `<span class="col-hex ${cls}" data-byte="${off+i}">${hex}</span>`;
+        hexStr += hex + ' ';
+        ascStr += byteChar(b);
+      } else {
+        html += '<span class="col-hex"></span>';
+      }
+    }
+
+    // ASCII panel — single <span> per row for simpler search
+    html += `<span class="col-ascii" id="asc${row}">${ascStr.split('').map((c,i) => {
+      const b = off + i < total ? bytes[off + i] : 0;
+      return `<span class="${byteClass(b)}">${c === '<' ? '&lt;' : c === '>' ? '&gt;' : c === '&' ? '&amp;' : c}</span>`;
+    }).join('')}</span>`;
+
+    div.innerHTML = html;
+    frag.appendChild(div);
+
+    plainDump += `${offStr}  ${hexStr.padEnd(BPR * 3)}  ${ascStr}\n`;
+  }
+
+  if (limit < numRows) {
+    const note = document.createElement('div');
+    note.style.cssText = 'padding:10px 14px;font-size:.8rem;color:var(--text-muted);font-family:var(--mono);';
+    note.textContent = `… ${(numRows - limit).toLocaleString()} more rows not shown. Increase "Max rows" or select "All".`;
+    frag.appendChild(note);
+  }
+
+  const body = document.getElementById('hex-body');
+  body.innerHTML = '';
+  body.appendChild(frag);
+  _rawDump = plainDump;
+}
+
+// ── Search ────────────────────────────────────────────────────────────────────
+let _searchTimer = null;
+function doSearch() {
+  clearTimeout(_searchTimer);
+  _searchTimer = setTimeout(_doSearch, 200);
+}
+function _doSearch() {
+  // Remove previous highlights
+  document.querySelectorAll('.b-match').forEach(el => el.classList.remove('b-match'));
+  const q = document.getElementById('search-in').value.trim();
+  document.getElementById('search-count').textContent = '';
+  if (!q || !_fileBytes) return;
+
+  // Determine search type: hex bytes or ASCII text
+  const isHex = /^[0-9a-fA-F\s]+$/.test(q) && q.replace(/\s/g,'').length % 2 === 0 && !q.includes(' ') === false;
+  let pattern;
+  if (/^([0-9a-fA-F]{2}\s?)+$/.test(q)) {
+    // Hex search
+    pattern = q.replace(/\s/g,'').match(/.{2}/g).map(h => parseInt(h,16));
+  } else {
+    // ASCII text search
+    pattern = [...new TextEncoder().encode(q)];
+  }
+
+  const bytes  = _fileBytes;
+  const BPR    = parseInt(document.getElementById('bpr-select').value);
+  let   hits   = 0;
+  let firstHit = -1;
+
+  for (let i = 0; i <= bytes.length - pattern.length; i++) {
+    let match = true;
+    for (let j = 0; j < pattern.length; j++) {
+      if (bytes[i+j] !== pattern[j]) { match = false; break; }
+    }
+    if (match) {
+      hits++;
+      if (firstHit < 0) firstHit = i;
+      // Highlight each byte span
+      for (let j = 0; j < pattern.length; j++) {
+        const byteOff = i + j;
+        const el = document.querySelector(`[data-byte="${byteOff}"]`);
+        if (el) el.classList.add('b-match');
+      }
+    }
+  }
+
+  document.getElementById('search-count').textContent =
+    hits > 0 ? `${hits} match${hits > 1 ? 'es' : ''}` : 'No matches';
+
+  // Scroll to first match
+  if (firstHit >= 0) {
+    const row = Math.floor(firstHit / BPR);
+    const rowEl = document.getElementById('hr' + row);
+    if (rowEl) rowEl.scrollIntoView({ behavior:'smooth', block:'center' });
+  }
+}
+
+function copyDump() {
+  if (_rawDump) navigator.clipboard.writeText(_rawDump);
+}
+function downloadDump() {
+  if (!_rawDump) return;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([_rawDump], { type:'text/plain' }));
+  a.download = (_fileName || 'file') + '_hexdump.txt'; a.click();
+}
+</script>
+</body>
+</html>

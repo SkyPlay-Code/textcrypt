@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aegis · 2a — AES-256-GCM</title>
+<style>
+  :root {
+    --bg:#0f1115; --panel:#1a1d24; --border:#2a2e39;
+    --primary:#3b82f6; --primary-hover:#2563eb;
+    --text:#e2e8f0; --text-muted:#94a3b8;
+    --error:#ef4444; --success:#22c55e; --warning:#f59e0b;
+    --mono:'Fira Code','Courier New',monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',system-ui,sans-serif;}
+  body{background:var(--bg);color:var(--text);padding:30px;min-height:100vh;}
+  h2{font-size:1.4rem;margin-bottom:6px;}
+  .subtitle{color:var(--text-muted);font-size:.85rem;margin-bottom:24px;}
+
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:24px;max-width:700px;margin:0 auto;}
+  .card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;}
+  .card-header h3{font-size:1.1rem;margin:0;}
+  .badge{padding:3px 10px;border-radius:20px;font-size:.7rem;font-weight:700;text-transform:uppercase;background:rgba(34,197,94,.15);color:var(--success);}
+
+  .mode-strip{display:flex;background:#15181e;border-radius:6px;border:1px solid var(--border);overflow:hidden;margin-bottom:22px;}
+  .mode-btn{flex:1;padding:10px;text-align:center;cursor:pointer;color:var(--text-muted);font-size:.85rem;font-weight:600;text-transform:uppercase;transition:.2s;border:none;background:none;}
+  .mode-btn.active{background:var(--panel);color:var(--primary);border-bottom:2px solid var(--primary);}
+
+  .panel{display:none;} .panel.active{display:block;}
+
+  .fg{margin-bottom:18px;position:relative;}
+  label{display:block;margin-bottom:7px;font-size:.85rem;color:var(--text-muted);font-weight:500;}
+  textarea,input[type=password]{width:100%;padding:11px 38px 11px 11px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:.9rem;transition:border-color .2s;resize:vertical;}
+  textarea{min-height:100px;padding-right:11px;}
+  textarea:focus,input:focus{outline:none;border-color:var(--primary);}
+
+  .eye{position:absolute;right:10px;top:33px;background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1rem;line-height:1;}
+
+  .out-box{font-family:var(--mono);font-size:.82rem;background:var(--bg);border:1px solid var(--border);padding:12px;border-radius:6px;word-break:break-all;min-height:56px;white-space:pre-wrap;}
+
+  .btn{display:inline-flex;align-items:center;gap:8px;padding:10px 18px;background:var(--primary);color:#fff;border:none;border-radius:6px;font-size:.9rem;font-weight:600;cursor:pointer;transition:background .2s;}
+  .btn:hover{background:var(--primary-hover);}
+  .btn:disabled{background:var(--border);color:var(--text-muted);cursor:not-allowed;}
+  .btn-sm{background:transparent;border:1px solid var(--border);color:var(--text);padding:7px 14px;font-size:.82rem;margin-top:8px;}
+  .btn-sm:hover{background:var(--border);}
+
+  .spinner{width:15px;height:15px;border:2px solid rgba(255,255,255,.3);border-radius:50%;border-top-color:#fff;animation:spin .7s linear infinite;display:none;}
+  .btn.loading .spinner{display:inline-block;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  .status{margin-top:12px;padding:10px 14px;border-radius:6px;font-size:.85rem;display:none;}
+  .status.ok{background:rgba(34,197,94,.1);color:var(--success);border:1px solid rgba(34,197,94,.25);display:block;}
+  .status.err{background:rgba(239,68,68,.1);color:var(--error);border:1px solid rgba(239,68,68,.25);display:block;}
+
+  details{margin-top:22px;padding:14px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:6px;font-size:.83rem;color:var(--text-muted);}
+  details summary{cursor:pointer;font-weight:600;color:var(--text);}
+  details p{margin-top:10px;line-height:1.6;}
+  code{background:rgba(255,255,255,.07);padding:1px 5px;border-radius:3px;font-family:var(--mono);}
+</style>
+</head>
+<body>
+
+<div style="max-width:700px;margin:0 auto;">
+  <h2>2a — AES-256-GCM Text Encryption</h2>
+  <p class="subtitle">Web Crypto API · PBKDF2 key derivation · 250,000 iterations</p>
+
+  <div class="card">
+    <div class="card-header">
+      <h3>AES-256-GCM</h3>
+      <span class="badge">✔ Secure</span>
+    </div>
+
+    <div class="mode-strip">
+      <button class="mode-btn active" id="tab-enc" onclick="setMode('enc')">🔒 Encrypt</button>
+      <button class="mode-btn"        id="tab-dec" onclick="setMode('dec')">🔓 Decrypt</button>
+    </div>
+
+    <!-- ENCRYPT PANEL -->
+    <div id="panel-enc" class="panel active">
+      <div class="fg">
+        <label>Plaintext</label>
+        <textarea id="enc-text" rows="4" placeholder="Enter the text you want to encrypt…"></textarea>
+      </div>
+      <div class="fg">
+        <label>Password</label>
+        <input type="password" id="enc-pass" placeholder="Passphrase used to derive the AES-256 key">
+        <button class="eye" onclick="toggleEye('enc-pass',this)">👁</button>
+      </div>
+      <button class="btn" id="enc-btn" onclick="doEncrypt()">
+        <span class="spinner"></span> Encrypt
+      </button>
+      <div id="enc-status" class="status"></div>
+      <div class="fg" style="margin-top:16px;">
+        <label>Ciphertext — Base64</label>
+        <div class="out-box" id="enc-out"></div>
+        <button class="btn btn-sm" id="enc-copy" onclick="copyOut('enc-out','enc-copy')">Copy to clipboard</button>
+      </div>
+    </div>
+
+    <!-- DECRYPT PANEL -->
+    <div id="panel-dec" class="panel">
+      <div class="fg">
+        <label>Ciphertext — Base64</label>
+        <textarea id="dec-text" rows="4" placeholder="Paste the Base64 ciphertext here…"></textarea>
+      </div>
+      <div class="fg">
+        <label>Password</label>
+        <input type="password" id="dec-pass" placeholder="Passphrase used during encryption">
+        <button class="eye" onclick="toggleEye('dec-pass',this)">👁</button>
+      </div>
+      <button class="btn" id="dec-btn" onclick="doDecrypt()">
+        <span class="spinner"></span> Decrypt
+      </button>
+      <div id="dec-status" class="status"></div>
+      <div class="fg" style="margin-top:16px;">
+        <label>Decrypted Plaintext</label>
+        <div class="out-box" id="dec-out"></div>
+        <button class="btn btn-sm" id="dec-copy" onclick="copyOut('dec-out','dec-copy')">Copy to clipboard</button>
+      </div>
+    </div>
+
+    <details>
+      <summary>How it works</summary>
+      <p>
+        Your password is combined with a randomly generated 16-byte <strong>salt</strong> and run through
+        <strong>PBKDF2</strong> (SHA-256, 250,000 iterations) to produce a 256-bit AES key.
+        The plaintext is then encrypted with <strong>AES-GCM</strong> using a random 12-byte IV.
+        GCM mode provides both encryption and an authentication tag — any tampering is detected on decrypt.
+        The output is <code>[salt 16B][iv 12B][ciphertext+tag]</code> encoded as Base64.
+      </p>
+    </details>
+  </div>
+</div>
+
+<script>
+// ── UI ──────────────────────────────────────────────────────────────────────
+
+function setMode(m) {
+  document.getElementById('panel-enc').classList.toggle('active', m === 'enc');
+  document.getElementById('panel-dec').classList.toggle('active', m === 'dec');
+  document.getElementById('tab-enc').classList.toggle('active', m === 'enc');
+  document.getElementById('tab-dec').classList.toggle('active', m === 'dec');
+}
+
+function toggleEye(id, btn) {
+  const el = document.getElementById(id);
+  el.type = el.type === 'password' ? 'text' : 'password';
+  btn.textContent = el.type === 'password' ? '👁' : '🙈';
+}
+
+function showStatus(id, msg, isErr) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.className = 'status ' + (isErr ? 'err' : 'ok');
+  setTimeout(() => { el.style.display = 'none'; }, 6000);
+}
+
+const _copyTimers = {};
+async function copyOut(outId, btnId) {
+  const text = document.getElementById(outId).textContent.trim();
+  if (!text) return;
+  await navigator.clipboard.writeText(text);
+  const btn = document.getElementById(btnId);
+  const orig = btn.textContent;
+  if (_copyTimers[btnId]) clearInterval(_copyTimers[btnId]);
+  let t = 30;
+  btn.textContent = `Clearing in ${t}s…`;
+  _copyTimers[btnId] = setInterval(() => {
+    t--;
+    if (t <= 0) {
+      clearInterval(_copyTimers[btnId]);
+      navigator.clipboard.writeText('');
+      btn.textContent = orig;
+    } else {
+      btn.textContent = `Clearing in ${t}s…`;
+    }
+  }, 1000);
+}
+
+function setLoading(btnId, on) {
+  const b = document.getElementById(btnId);
+  b.disabled = on;
+  on ? b.classList.add('loading') : b.classList.remove('loading');
+}
+
+// ── Crypto helpers ───────────────────────────────────────────────────────────
+
+/** Derive a non-extractable AES-256-GCM key via PBKDF2 */
+async function deriveKey(password, salt) {
+  const raw = await crypto.subtle.importKey(
+    'raw', new TextEncoder().encode(password),
+    { name: 'PBKDF2' }, false, ['deriveKey']
+  );
+  return crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt, iterations: 250000, hash: 'SHA-256' },
+    raw,
+    { name: 'AES-GCM', length: 256 },
+    false,                        // non-extractable
+    ['encrypt', 'decrypt']
+  );
+}
+
+function toB64(buf) {
+  return btoa(Array.from(new Uint8Array(buf), b => String.fromCharCode(b)).join(''));
+}
+function fromB64(s) {
+  return Uint8Array.from(atob(s), c => c.charCodeAt(0));
+}
+
+// ── Encrypt ──────────────────────────────────────────────────────────────────
+
+async function doEncrypt() {
+  const text = document.getElementById('enc-text').value;
+  const pass = document.getElementById('enc-pass').value;
+  if (!text) return showStatus('enc-status', 'Please enter some text to encrypt.', true);
+  if (!pass) return showStatus('enc-status', 'Please enter a password.', true);
+
+  setLoading('enc-btn', true);
+  document.getElementById('enc-out').textContent = '';
+
+  try {
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const iv   = crypto.getRandomValues(new Uint8Array(12));
+    const key  = await deriveKey(pass, salt);
+
+    const ct = new Uint8Array(
+      await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(text))
+    );
+
+    // Pack: [salt 16B][iv 12B][ciphertext]
+    const out = new Uint8Array(16 + 12 + ct.length);
+    out.set(salt, 0); out.set(iv, 16); out.set(ct, 28);
+
+    document.getElementById('enc-out').textContent = toB64(out.buffer);
+    showStatus('enc-status', '✔ Encrypted successfully.', false);
+  } catch (e) {
+    showStatus('enc-status', 'Encryption error: ' + e.message, true);
+  } finally {
+    setLoading('enc-btn', false);
+  }
+}
+
+// ── Decrypt ──────────────────────────────────────────────────────────────────
+
+async function doDecrypt() {
+  const b64  = document.getElementById('dec-text').value.trim();
+  const pass = document.getElementById('dec-pass').value;
+  if (!b64)  return showStatus('dec-status', 'Please paste a Base64 ciphertext.', true);
+  if (!pass) return showStatus('dec-status', 'Please enter the password.', true);
+
+  setLoading('dec-btn', true);
+  document.getElementById('dec-out').textContent = '';
+
+  try {
+    const payload = fromB64(b64);
+    if (payload.length < 29) throw new Error('Payload is too short — is this a valid ciphertext?');
+
+    const salt = payload.slice(0,  16);
+    const iv   = payload.slice(16, 28);
+    const ct   = payload.slice(28);
+    const key  = await deriveKey(pass, salt);
+
+    const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ct);
+    document.getElementById('dec-out').textContent = new TextDecoder().decode(plain);
+    showStatus('dec-status', '✔ Decrypted successfully.', false);
+  } catch (e) {
+    showStatus('dec-status', 'Decryption failed — wrong password or corrupted data.', true);
+  } finally {
+    setLoading('dec-btn', false);
+  }
+}
+</script>
+</body>
+</html>

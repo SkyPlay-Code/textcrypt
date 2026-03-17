@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aegis · 9c — Metadata Stripper</title>
+<style>
+  :root {
+    --bg:#0f1115; --panel:#1a1d24; --border:#2a2e39;
+    --primary:#3b82f6; --primary-hover:#2563eb;
+    --text:#e2e8f0; --text-muted:#94a3b8;
+    --error:#ef4444; --success:#22c55e; --warning:#f59e0b;
+    --mono:'Fira Code','Courier New',monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',system-ui,sans-serif;}
+  body{background:var(--bg);color:var(--text);padding:30px;min-height:100vh;}
+  h2{font-size:1.4rem;margin-bottom:6px;}
+  .subtitle{color:var(--text-muted);font-size:.85rem;margin-bottom:24px;}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:24px;max-width:820px;margin:0 auto 28px;}
+  .card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px;}
+  .card-header h3{font-size:1.1rem;margin:0;}
+  .badge{padding:3px 10px;border-radius:20px;font-size:.7rem;font-weight:700;text-transform:uppercase;background:rgba(34,197,94,.15);color:var(--success);}
+  .fg{margin-bottom:18px;}
+  label{display:block;margin-bottom:7px;font-size:.85rem;color:var(--text-muted);font-weight:500;}
+  select{padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:.88rem;cursor:pointer;}
+  select:focus{outline:none;border-color:var(--primary);}
+  .drop-zone{border:2px dashed var(--border);border-radius:8px;padding:40px 20px;text-align:center;cursor:pointer;transition:.2s;background:rgba(255,255,255,.01);}
+  .drop-zone:hover,.drop-zone.over{border-color:var(--primary);background:rgba(59,130,246,.06);}
+  .drop-zone p{color:var(--text-muted);font-size:.9rem;pointer-events:none;}
+  .drop-zone input{display:none;}
+  .file-badge{display:inline-flex;align-items:center;gap:8px;margin-top:10px;padding:7px 14px;background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.3);border-radius:6px;font-size:.8rem;color:var(--primary);font-family:var(--mono);}
+  .btn{display:inline-flex;align-items:center;gap:7px;padding:10px 18px;background:var(--primary);color:#fff;border:none;border-radius:6px;font-size:.9rem;font-weight:600;cursor:pointer;transition:background .2s;}
+  .btn:hover{background:var(--primary-hover);}
+  .btn:disabled{background:var(--border);color:var(--text-muted);cursor:not-allowed;}
+  .btn-sm{background:transparent;border:1px solid var(--border);color:var(--text);padding:7px 13px;font-size:.82rem;}
+  .btn-sm:hover{background:var(--border);}
+  .btn-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;}
+  .spinner{width:15px;height:15px;border:2px solid rgba(255,255,255,.3);border-radius:50%;border-top-color:#fff;animation:spin .7s linear infinite;display:none;}
+  .btn.loading .spinner{display:inline-block;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .status{margin-top:12px;padding:10px 14px;border-radius:6px;font-size:.85rem;display:none;}
+  .status.ok{background:rgba(34,197,94,.1);color:var(--success);border:1px solid rgba(34,197,94,.25);display:block;}
+  .status.err{background:rgba(239,68,68,.1);color:var(--error);border:1px solid rgba(239,68,68,.25);display:block;}
+  /* Result */
+  .result-wrap{display:none;margin-top:20px;}
+  /* Image comparison */
+  .img-compare{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;}
+  @media(max-width:560px){.img-compare{grid-template-columns:1fr;}}
+  .img-panel{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:14px;text-align:center;}
+  .img-panel-title{font-size:.78rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px;}
+  .img-panel img{max-width:100%;max-height:280px;border-radius:4px;display:block;margin:0 auto;}
+  .img-panel-info{font-size:.75rem;color:var(--text-muted);margin-top:8px;font-family:var(--mono);}
+  /* Stats */
+  .stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;}
+  @media(max-width:500px){.stats-grid{grid-template-columns:1fr 1fr;}}
+  .stat{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:11px 13px;}
+  .stat-lbl{font-size:.7rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;}
+  .stat-num{font-size:1.05rem;font-weight:700;font-family:var(--mono);}
+  .stat-sub{font-size:.72rem;color:var(--text-muted);margin-top:2px;}
+  /* EXIF found tags */
+  .exif-section{background:var(--bg);border:1px solid rgba(245,158,11,.25);border-radius:8px;padding:14px;margin-bottom:16px;}
+  .exif-title{font-size:.78rem;font-weight:700;color:var(--warning);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px;}
+  .exif-table{width:100%;border-collapse:collapse;font-size:.78rem;}
+  .exif-table td{padding:5px 10px;border-bottom:1px solid var(--border);vertical-align:top;}
+  .exif-table td:first-child{color:var(--text-muted);font-weight:600;white-space:nowrap;width:40%;}
+  .exif-table td:last-child{font-family:var(--mono);word-break:break-all;}
+  .exif-table tr:last-child td{border-bottom:none;}
+  .no-exif{padding:10px;font-size:.82rem;color:var(--text-muted);}
+  /* Quality slider */
+  .quality-row{display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap;}
+  .quality-row label{margin:0;font-size:.83rem;white-space:nowrap;}
+  .quality-row input[type=range]{flex:1;min-width:120px;accent-color:var(--primary);}
+  .quality-num{font-family:var(--mono);font-size:.88rem;color:var(--primary);font-weight:700;min-width:36px;}
+  details{margin-top:22px;padding:14px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:6px;font-size:.83rem;color:var(--text-muted);}
+  details summary{cursor:pointer;font-weight:600;color:var(--text);}
+  details p{margin-top:10px;line-height:1.6;}
+  code{background:rgba(255,255,255,.07);padding:1px 5px;border-radius:3px;font-family:var(--mono);}
+</style>
+</head>
+<body>
+<div style="max-width:820px;margin:0 auto;">
+  <h2>9c — Metadata Stripper</h2>
+  <p class="subtitle">Remove EXIF, GPS, camera info, and all metadata · redraw through HTML Canvas · JPEG &amp; PNG</p>
+
+  <div class="card">
+    <div class="card-header">
+      <h3>Metadata Stripper</h3>
+      <span class="badge">EXIF Remover</span>
+    </div>
+
+    <div class="fg">
+      <label>Image to clean (JPEG or PNG)</label>
+      <div class="drop-zone" id="img-drop"
+           ondragover="onDragOver(event,'img-drop')" ondragleave="onDragLeave('img-drop')"
+           ondrop="onImgDrop(event)">
+        <p>Drag &amp; drop a JPEG or PNG — GPS coords, camera model, timestamps and all EXIF will be removed</p>
+        <input type="file" id="img-in" accept="image/jpeg,image/png" onchange="onImgSelect(this)" onclick="event.stopPropagation()">
+        <div id="img-badge"></div>
+      </div>
+    </div>
+
+    <!-- Output format + quality -->
+    <div class="quality-row">
+      <label>Output format:</label>
+      <select id="out-fmt">
+        <option value="image/jpeg">JPEG</option>
+        <option value="image/png">PNG (lossless)</option>
+      </select>
+      <label>JPEG quality:</label>
+      <input type="range" id="quality-slider" min="50" max="100" value="92"
+             oninput="document.getElementById('q-num').textContent=this.value+'%'">
+      <span class="quality-num" id="q-num">92%</span>
+    </div>
+
+    <button class="btn" id="strip-btn" onclick="doStrip()">
+      <span class="spinner"></span> Strip Metadata &amp; Download
+    </button>
+    <div id="strip-status" class="status"></div>
+
+    <div class="result-wrap" id="result-wrap">
+      <!-- Image comparison -->
+      <div class="img-compare">
+        <div class="img-panel">
+          <div class="img-panel-title">Original (with metadata)</div>
+          <img id="orig-img" src="" alt="original">
+          <div class="img-panel-info" id="orig-info"></div>
+        </div>
+        <div class="img-panel">
+          <div class="img-panel-title">✅ Clean (metadata stripped)</div>
+          <img id="clean-img" src="" alt="cleaned">
+          <div class="img-panel-info" id="clean-info"></div>
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <div class="stats-grid">
+        <div class="stat"><div class="stat-lbl">Original Size</div><div class="stat-num" id="st-orig">—</div></div>
+        <div class="stat"><div class="stat-lbl">Clean Size</div><div class="stat-num" id="st-clean">—</div></div>
+        <div class="stat"><div class="stat-lbl">Size Reduction</div><div class="stat-num" id="st-delta">—</div><div class="stat-sub" id="st-delta-sub"></div></div>
+        <div class="stat"><div class="stat-lbl">Dimensions</div><div class="stat-num" id="st-dim">—</div></div>
+        <div class="stat"><div class="stat-lbl">Metadata Fields</div><div class="stat-num" id="st-fields">—</div><div class="stat-sub">detected in JPEG</div></div>
+        <div class="stat"><div class="stat-lbl">GPS Data</div><div class="stat-num" id="st-gps">—</div></div>
+      </div>
+
+      <!-- EXIF found -->
+      <div class="exif-section" id="exif-section">
+        <div class="exif-title">⚠️ Metadata Found &amp; Removed</div>
+        <div id="exif-content"></div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-sm" id="dl-btn" onclick="downloadClean()">⬇ Download clean image</button>
+      </div>
+    </div>
+
+    <details>
+      <summary>How metadata stripping works</summary>
+      <p>
+        JPEG files embed metadata in EXIF (Exchangeable Image File Format) segments — APP1 markers
+        containing camera settings, GPS coordinates, device serial numbers, timestamps, and software.
+        This tool strips all of it by <strong>redrawing the image through an HTML Canvas</strong>:
+        the image is decoded and re-encoded as a new file from pixel data alone — Canvas never
+        carries over any original file structure or metadata segments.
+        The output is a pixel-identical (within JPEG compression limits) but entirely clean image.
+        For maximum privacy, select PNG output (lossless and guaranteed clean).
+        Note: GPS and EXIF detection below is a basic heuristic parser — the stripping itself is
+        complete regardless of what metadata is detected.
+      </p>
+    </details>
+  </div>
+</div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────────
+let _cleanDataUrl = null;
+let _cleanFilename = '';
+
+// ── UI helpers ─────────────────────────────────────────────────────────────────
+function onDragOver(e, id) { e.preventDefault(); document.getElementById(id).classList.add('over'); }
+function onDragLeave(id)   { document.getElementById(id).classList.remove('over'); }
+function onImgDrop(e) {
+  e.preventDefault(); onDragLeave('img-drop');
+  const f = e.dataTransfer.files[0]; if (!f) return;
+  try { const dt = new DataTransfer(); dt.items.add(f); document.getElementById('img-in').files = dt.files; } catch(_) {}
+  showBadge(f);
+}
+function onImgSelect(input) { if (input.files[0]) showBadge(input.files[0]); }
+function showBadge(f) {
+  document.getElementById('img-badge').innerHTML =
+    `<div class="file-badge">🖼️ ${f.name} · ${fmtSize(f.size)}</div>`;
+}
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('img-drop').addEventListener('click', () =>
+    document.getElementById('img-in').click());
+});
+function fmtSize(n) {
+  if (n < 1024) return n + ' B';
+  if (n < 1048576) return (n/1024).toFixed(1) + ' KB';
+  return (n/1048576).toFixed(2) + ' MB';
+}
+function setLoading(id, on) {
+  const b = document.getElementById(id); b.disabled = on;
+  on ? b.classList.add('loading') : b.classList.remove('loading');
+}
+function showStatus(id, msg, isErr) {
+  const el = document.getElementById(id);
+  el.textContent = msg; el.className = 'status ' + (isErr ? 'err' : 'ok');
+  setTimeout(() => { el.style.display = 'none'; }, 8000);
+}
+
+// ── Basic EXIF parser for display only ───────────────────────────────────────
+// Reads common EXIF tags from the raw JPEG bytes for informational display.
+// The actual stripping is done by Canvas — this is just so we can show what was found.
+function parseExifTags(buffer) {
+  const view = new DataView(buffer);
+  const tags = {};
+  let hasGPS = false;
+
+  // Check JPEG SOI
+  if (view.getUint16(0) !== 0xFFD8) return { tags, hasGPS };
+
+  let offset = 2;
+  while (offset < buffer.byteLength - 1) {
+    const marker = view.getUint16(offset);
+    if (marker === 0xFFD9) break; // EOI
+    if ((marker & 0xFF00) !== 0xFF00) break;
+
+    const segLen = offset + 2 < buffer.byteLength ? view.getUint16(offset + 2) : 0;
+
+    // APP1 = 0xFFE1 (may contain EXIF)
+    if (marker === 0xFFE1 && segLen > 6) {
+      const exifStart = offset + 4;
+      try {
+        // Check "Exif\0\0" header
+        const hdr = String.fromCharCode(
+          view.getUint8(exifStart), view.getUint8(exifStart+1),
+          view.getUint8(exifStart+2), view.getUint8(exifStart+3)
+        );
+        if (hdr === 'Exif') {
+          const tiffStart = exifStart + 6;
+          const littleEndian = view.getUint16(tiffStart) === 0x4949;
+          const ifdOffset    = view.getUint32(tiffStart + 4, littleEndian);
+
+          const readTag = (ifd) => {
+            if (tiffStart + ifd + 2 > buffer.byteLength) return;
+            const numEntries = view.getUint16(tiffStart + ifd, littleEndian);
+            for (let i = 0; i < numEntries; i++) {
+              const e = tiffStart + ifd + 2 + i * 12;
+              if (e + 12 > buffer.byteLength) break;
+              const tag   = view.getUint16(e, littleEndian);
+              const type  = view.getUint16(e + 2, littleEndian);
+              const count = view.getUint32(e + 4, littleEndian);
+              const vOff  = e + 8;
+
+              const TAG_NAMES = {
+                0x010F: 'Make',        0x0110: 'Model',
+                0x0132: 'DateTime',    0x013B: 'Artist',
+                0x8298: 'Copyright',   0x9003: 'DateTimeOriginal',
+                0x9004: 'DateTimeDigitized', 0xA420: 'ImageUniqueID',
+                0x9286: 'UserComment', 0x013C: 'HostComputer',
+                0x0131: 'Software',    0x8825: 'GPSInfoIFDPointer',
+                0x013E: 'WhitePoint',  0x0212: 'YCbCrSubSampling',
+              };
+
+              if (tag === 0x8825) { hasGPS = true; tags['GPS Data'] = 'Present (coordinates embedded)'; }
+
+              if (TAG_NAMES[tag] && tag !== 0x8825) {
+                // Type 2 = ASCII string
+                if (type === 2 && count > 1) {
+                  let valOffset = count <= 4 ? vOff : (tiffStart + view.getUint32(vOff, littleEndian));
+                  let str = '';
+                  for (let c = 0; c < Math.min(count - 1, 64); c++) {
+                    const ch = view.getUint8(valOffset + c);
+                    if (ch === 0) break;
+                    str += String.fromCharCode(ch);
+                  }
+                  if (str) tags[TAG_NAMES[tag]] = str;
+                }
+              }
+            }
+          };
+          readTag(ifdOffset);
+        }
+      } catch(_) {}
+    }
+
+    offset += 2 + segLen;
+    if (segLen === 0) break;
+  }
+  return { tags, hasGPS };
+}
+
+// ── Main strip function ───────────────────────────────────────────────────────
+async function doStrip() {
+  const file = document.getElementById('img-in').files[0];
+  if (!file) return showStatus('strip-status', 'Please select an image file.', true);
+
+  setLoading('strip-btn', true);
+  document.getElementById('result-wrap').style.display = 'none';
+  showStatus('strip-status', '⏳ Loading and analyzing image…', false);
+
+  try {
+    const fmt     = document.getElementById('out-fmt').value;
+    const quality = parseInt(document.getElementById('quality-slider').value) / 100;
+    const origBuf = await file.arrayBuffer();
+
+    // Parse EXIF for display (JPEG only)
+    let exifTags = {}, hasGPS = false;
+    if (file.type === 'image/jpeg') {
+      const r = parseExifTags(origBuf);
+      exifTags = r.tags; hasGPS = r.hasGPS;
+    }
+
+    // Load image into canvas
+    const dataUrl  = await fileToDataUrl(file);
+    const { img, canvas, ctx } = await drawImageToCanvas(dataUrl);
+
+    // Export clean image
+    _cleanDataUrl  = canvas.toDataURL(fmt, quality);
+    const ext      = fmt === 'image/png' ? 'png' : 'jpg';
+    _cleanFilename = file.name.replace(/\.[^.]+$/, '') + '_clean.' + ext;
+
+    // Compute clean file size from data URL
+    const b64      = _cleanDataUrl.split(',')[1];
+    const cleanSize= Math.round(b64.length * 3/4);
+
+    // Update UI
+    document.getElementById('orig-img').src  = dataUrl;
+    document.getElementById('clean-img').src = _cleanDataUrl;
+
+    const origSize = file.size;
+    const delta    = origSize - cleanSize;
+    const deltaPct = ((delta / origSize) * 100).toFixed(1);
+
+    document.getElementById('orig-info').textContent  = fmtSize(origSize);
+    document.getElementById('clean-info').textContent = fmtSize(cleanSize);
+    document.getElementById('st-orig').textContent    = fmtSize(origSize);
+    document.getElementById('st-clean').textContent   = fmtSize(cleanSize);
+    document.getElementById('st-delta').textContent   = (delta > 0 ? '-' : '+') + fmtSize(Math.abs(delta));
+    document.getElementById('st-delta-sub').textContent = `${deltaPct}% change`;
+    document.getElementById('st-dim').textContent     = `${img.naturalWidth} × ${img.naturalHeight}`;
+    document.getElementById('st-fields').textContent  = Object.keys(exifTags).length;
+    document.getElementById('st-gps').textContent     = hasGPS ? '⚠️ Found & removed' : '✅ None found';
+
+    // EXIF display
+    const exifEl = document.getElementById('exif-content');
+    const fieldCount = Object.keys(exifTags).length;
+    if (fieldCount > 0) {
+      exifEl.innerHTML = `<table class="exif-table">${
+        Object.entries(exifTags).map(([k,v]) =>
+          `<tr><td>${k}</td><td>${v}</td></tr>`).join('')
+      }</table>`;
+    } else {
+      exifEl.innerHTML = `<div class="no-exif">${
+        file.type === 'image/jpeg'
+          ? '✅ No readable EXIF fields detected in this JPEG. The canvas redraw still removes all metadata segments.'
+          : '✅ PNG files do not carry EXIF in the same way. All tEXt/zTXt/iTXt metadata chunks are removed by the canvas redraw.'
+      }</div>`;
+    }
+
+    document.getElementById('result-wrap').style.display = 'block';
+    showStatus('strip-status', `✔ Metadata stripped. Clean image ready for download.`, false);
+
+    // Auto-trigger download
+    downloadClean();
+  } catch (e) {
+    showStatus('strip-status', 'Error: ' + e.message, true);
+  } finally {
+    setLoading('strip-btn', false);
+  }
+}
+
+function fileToDataUrl(file) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload  = e => res(e.target.result);
+    r.onerror = () => rej(new Error('Failed to read file.'));
+    r.readAsDataURL(file);
+  });
+}
+
+function drawImageToCanvas(dataUrl) {
+  return new Promise((res, rej) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width  = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      const ctx = canvas.getContext('2d');
+      // White background for JPEG (avoids black transparent areas)
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0);
+      res({ img, canvas, ctx });
+    };
+    img.onerror = () => rej(new Error('Failed to decode image.'));
+    img.src = dataUrl;
+  });
+}
+
+function downloadClean() {
+  if (!_cleanDataUrl) return;
+  const a = document.createElement('a');
+  a.href = _cleanDataUrl; a.download = _cleanFilename; a.click();
+}
+</script>
+</body>
+</html>

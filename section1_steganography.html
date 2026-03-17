@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aegis - Section 1: Steganography</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="utils.js"></script>
+    <style>
+        /* Section-specific Layout & Overrides */
+        body { padding: 20px; display: block; height: auto; overflow: auto; } /* For standalone testing */
+        
+        .nav-tabs { display: flex; gap: 10px; margin-bottom: 24px; border-bottom: 1px solid var(--border); padding-bottom: 10px; overflow-x: auto; }
+        .nav-tab { padding: 8px 16px; cursor: pointer; color: var(--text-muted); font-size: 0.95rem; font-weight: 500; border-radius: 6px; white-space: nowrap; transition: 0.2s; }
+        .nav-tab:hover { background: rgba(255,255,255,0.05); }
+        .nav-tab.active { background: rgba(59, 130, 246, 0.1); color: var(--primary); border: 1px solid rgba(59, 130, 246, 0.3); }
+
+        .tool-section { display: none; }
+        .tool-section.active { display: block; animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+        .mode-tabs { display: flex; background: #15181e; border-radius: 6px; overflow: hidden; margin-bottom: 20px; border: 1px solid var(--border); }
+        .mode-tab { flex: 1; text-align: center; padding: 10px; cursor: pointer; color: var(--text-muted); font-size: 0.85rem; font-weight: 600; text-transform: uppercase; transition: 0.2s; }
+        .mode-tab.active { background: var(--panel); color: var(--primary); border-bottom: 2px solid var(--primary); }
+
+        .mode-content { display: none; }
+        .mode-content.active { display: block; }
+
+        .file-drop-area { border: 2px dashed var(--border); border-radius: 8px; padding: 30px 20px; text-align: center; cursor: pointer; background: rgba(255,255,255,0.01); transition: 0.2s; margin-bottom: 15px; }
+        .file-drop-area:hover, .file-drop-area.dragover { border-color: var(--primary); background: rgba(59, 130, 246, 0.05); }
+        .file-drop-area input[type="file"] { display: none; }
+        .file-name-display { margin-top: 10px; font-size: 0.85rem; color: var(--primary); font-family: var(--font-mono); word-break: break-all; }
+
+        .header-flex { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .header-flex h3 { margin: 0; font-size: 1.2rem; }
+    </style>
+</head>
+<body>
+
+<div class="main-content">
+    <h2>1. Steganography Suite</h2>
+    
+    <div class="nav-tabs">
+        <div class="nav-tab active" onclick="switchTool('img-stego')">1a. Image Stego (LSB)</div>
+        <div class="nav-tab" onclick="switchTool('emoji-stego')">1b. Emoji Stego</div>
+        <div class="nav-tab" onclick="switchTool('text-stego')">1c. Text Stego</div>
+        <div class="nav-tab" onclick="switchTool('audio-stego')">1d. Audio Stego (WAV)</div>
+    </div>
+
+    <!-- ==========================================
+         1A. IMAGE STEGO (LSB)
+         ========================================== -->
+    <div id="img-stego" class="tool-section active">
+        <div class="tool-card">
+            <div class="header-flex">
+                <h3>Cryptographic Image Steganography</h3>
+                <span class="badge secure">AES-256-GCM / LSB</span>
+            </div>
+            
+            <div class="mode-tabs">
+                <div class="mode-tab active" onclick="switchMode('img', 'encode')">Encrypt & Embed</div>
+                <div class="mode-tab" onclick="switchMode('img', 'decode')">Extract & Decrypt</div>
+            </div>
+
+            <!-- Image Encode -->
+            <div id="img-encode" class="mode-content active">
+                <div class="form-group">
+                    <label>Carrier Image (PNG or JPG)</label>
+                    <div class="file-drop-area" onclick="document.getElementById('img-enc-file').click()">
+                        <span>Drop image here or click to browse</span>
+                        <input type="file" id="img-enc-file" accept="image/png, image/jpeg" onchange="updateFileName(this, 'img-enc-filename')">
+                        <div id="img-enc-filename" class="file-name-display"></div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Secret Payload (Text)</label>
+                    <textarea id="img-enc-text" placeholder="Highly confidential text to embed..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Encryption Password</label>
+                    <input type="password" id="img-enc-pass" placeholder="Used to derive AES key">
+                    <button class="pwd-toggle" onclick="Aegis.togglePassword('img-enc-pass')">👁</button>
+                </div>
+                <button class="btn" id="img-enc-btn" onclick="execImgEncode()">
+                    <span class="spinner"></span> Generate Secure Image
+                </button>
+                <div id="img-enc-status" class="status-msg"></div>
+            </div>
+
+            <!-- Image Decode -->
+            <div id="img-decode" class="mode-content">
+                <div class="form-group">
+                    <label>Stego Image (PNG Only)</label>
+                    <div class="file-drop-area" onclick="document.getElementById('img-dec-file').click()">
+                        <span>Drop stego PNG here or click to browse</span>
+                        <input type="file" id="img-dec-file" accept="image/png" onchange="updateFileName(this, 'img-dec-filename')">
+                        <div id="img-dec-filename" class="file-name-display"></div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Decryption Password</label>
+                    <input type="password" id="img-dec-pass" placeholder="Required for extraction">
+                    <button class="pwd-toggle" onclick="Aegis.togglePassword('img-dec-pass')">👁</button>
+                </div>
+                <button class="btn" id="img-dec-btn" onclick="execImgDecode()">
+                    <span class="spinner"></span> Extract Payload
+                </button>
+                <div class="form-group" style="margin-top: 15px;">
+                    <label>Decrypted Payload</label>
+                    <div class="output-area" id="img-dec-out">Awaiting decryption...</div>
+                    <button class="btn btn-secondary" id="img-copy-btn" style="margin-top: 10px;" onclick="Aegis.copyWithCountdown(document.getElementById('img-dec-out').innerText, 'img-copy-btn')">Copy to Clipboard</button>
+                </div>
+                <div id="img-dec-status" class="status-msg"></div>
+            </div>
+
+            <details class="how-it-works">
+                <summary>How it works</summary>
+                <p>The payload is first encrypted using <strong>AES-256-GCM</strong>. The key is derived from your password and a random salt via <strong>PBKDF2</strong>. The resulting ciphertext, salt, and IV are converted to binary bits and embedded into the Least Significant Bits (LSB) of the RGB channels of the image, keeping the visual alteration mathematically imperceptible.</p>
+            </details>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         1B. EMOJI STEGO
+         ========================================== -->
+    <div id="emoji-stego" class="tool-section">
+        <div class="tool-card">
+            <div class="header-flex">
+                <h3>Emoji Steganography</h3>
+                <span class="badge legacy">Zero-Width Unicode</span>
+            </div>
+
+            <div class="mode-tabs">
+                <div class="mode-tab active" onclick="switchMode('emj', 'encode')">Hide in Emoji</div>
+                <div class="mode-tab" onclick="switchMode('emj', 'decode')">Reveal Secret</div>
+            </div>
+
+            <!-- Emoji Encode -->
+            <div id="emj-encode" class="mode-content active">
+                <div class="form-group">
+                    <label>Cover Emoji String</label>
+                    <input type="text" id="emj-enc-cover" placeholder="e.g. 🐶🐱🐭🐹">
+                </div>
+                <div class="form-group">
+                    <label>Secret Text</label>
+                    <textarea id="emj-enc-text" placeholder="Text to hide behind emojis..."></textarea>
+                </div>
+                <button class="btn" id="emj-enc-btn" onclick="execEmojiEncode()">Generate Stego Emoji</button>
+                
+                <div class="form-group" style="margin-top: 15px;">
+                    <label>Result</label>
+                    <div class="output-area" id="emj-enc-out">Output will appear here...</div>
+                    <button class="btn btn-secondary" id="emj-copy-btn" style="margin-top: 10px;" onclick="Aegis.copyWithCountdown(document.getElementById('emj-enc-out').innerText, 'emj-copy-btn')">Copy to Clipboard</button>
+                </div>
+                <div id="emj-enc-status" class="status-msg"></div>
+            </div>
+
+            <!-- Emoji Decode -->
+            <div id="emj-decode" class="mode-content">
+                <div class="form-group">
+                    <label>Paste Stego Emoji</label>
+                    <textarea id="emj-dec-text" placeholder="Paste the emojis containing hidden data..."></textarea>
+                </div>
+                <button class="btn" id="emj-dec-btn" onclick="execEmojiDecode()">Extract Text</button>
+                
+                <div class="form-group" style="margin-top: 15px;">
+                    <label>Revealed Text</label>
+                    <div class="output-area" id="emj-dec-out">Hidden text will appear here...</div>
+                </div>
+                <div id="emj-dec-status" class="status-msg"></div>
+            </div>
+
+            <details class="how-it-works">
+                <summary>How it works</summary>
+                <p>Translates your secret text into binary, then maps `0` and `1` to invisible zero-width Unicode characters (Zero Width Joiner and Zero Width Non-Joiner). These invisible characters are interleaved immediately following your chosen emoji. Because they have zero width, the text appears completely normal.</p>
+            </details>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         1C. TEXT STEGO
+         ========================================== -->
+    <div id="text-stego" class="tool-section">
+        <div class="tool-card">
+            <div class="header-flex">
+                <h3>Text Steganography</h3>
+                <span class="badge legacy">Zero-Width Unicode</span>
+            </div>
+
+            <div class="mode-tabs">
+                <div class="mode-tab active" onclick="switchMode('txt', 'encode')">Hide in Text</div>
+                <div class="mode-tab" onclick="switchMode('txt', 'decode')">Reveal Secret</div>
+            </div>
+
+            <div id="txt-encode" class="mode-content active">
+                <div class="form-group">
+                    <label>Cover Text (Normal paragraph)</label>
+                    <textarea id="txt-enc-cover" placeholder="Normal looking text to act as a carrier..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Secret Payload</label>
+                    <textarea id="txt-enc-secret" placeholder="The hidden data to inject..."></textarea>
+                </div>
+                <button class="btn" id="txt-enc-btn" onclick="execTextEncode()">Inject Payload</button>
+                <div class="form-group" style="margin-top: 15px;">
+                    <label>Stego Text Result</label>
+                    <div class="output-area" id="txt-enc-out"></div>
+                    <button class="btn btn-secondary" id="txt-copy-btn" style="margin-top: 10px;" onclick="Aegis.copyWithCountdown(document.getElementById('txt-enc-out').innerText, 'txt-copy-btn')">Copy to Clipboard</button>
+                </div>
+                <div id="txt-enc-status" class="status-msg"></div>
+            </div>
+
+            <div id="txt-decode" class="mode-content">
+                <div class="form-group">
+                    <label>Paste Stego Text</label>
+                    <textarea id="txt-dec-input" placeholder="Paste the innocent-looking text here..."></textarea>
+                </div>
+                <button class="btn" id="txt-dec-btn" onclick="execTextDecode()">Extract Data</button>
+                <div class="form-group" style="margin-top: 15px;">
+                    <label>Extracted Payload</label>
+                    <div class="output-area" id="txt-dec-out"></div>
+                </div>
+                <div id="txt-dec-status" class="status-msg"></div>
+            </div>
+
+            <details class="how-it-works">
+                <summary>How it works</summary>
+                <p>Functions identically to the Emoji tool but uses a different set of invisible characters (Word Joiner U+2060 and Invisible Times U+2062) to embed the binary data immediately after the first character of the cover text. <em>Note: Pasting into some plain-text strict terminals may strip these characters.</em></p>
+            </details>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         1D. AUDIO STEGO (WAV)
+         ========================================== -->
+    <div id="audio-stego" class="tool-section">
+        <div class="tool-card">
+            <div class="header-flex">
+                <h3>WAV Audio Steganography</h3>
+                <span class="badge legacy">PCM LSB injection</span>
+            </div>
+
+            <div class="mode-tabs">
+                <div class="mode-tab active" onclick="switchMode('aud', 'encode')">Embed into Audio</div>
+                <div class="mode-tab" onclick="switchMode('aud', 'decode')">Extract from Audio</div>
+            </div>
+
+            <div id="aud-encode" class="mode-content active">
+                <div class="form-group">
+                    <label>Carrier WAV File</label>
+                    <div class="file-drop-area" onclick="document.getElementById('aud-enc-file').click()">
+                        <span>Drop WAV here or click to browse</span>
+                        <input type="file" id="aud-enc-file" accept="audio/wav" onchange="updateFileName(this, 'aud-enc-filename')">
+                        <div id="aud-enc-filename" class="file-name-display"></div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Secret Message</label>
+                    <textarea id="aud-enc-text" placeholder="Message to encode into audio samples..."></textarea>
+                </div>
+                <button class="btn" id="aud-enc-btn" onclick="execAudioEncode()">
+                    <span class="spinner"></span> Generate Stego Audio
+                </button>
+                <div id="aud-enc-status" class="status-msg"></div>
+            </div>
+
+            <div id="aud-decode" class="mode-content">
+                <div class="form-group">
+                    <label>Stego WAV File</label>
+                    <div class="file-drop-area" onclick="document.getElementById('aud-dec-file').click()">
+                        <span>Drop stego WAV here or click to browse</span>
+                        <input type="file" id="aud-dec-file" accept="audio/wav" onchange="updateFileName(this, 'aud-dec-filename')">
+                        <div id="aud-dec-filename" class="file-name-display"></div>
+                    </div>
+                </div>
+                <button class="btn" id="aud-dec-btn" onclick="execAudioDecode()">
+                    <span class="spinner"></span> Extract Payload
+                </button>
+                <div class="form-group" style="margin-top: 15px;">
+                    <label>Extracted Payload</label>
+                    <div class="output-area" id="aud-dec-out"></div>
+                </div>
+                <div id="aud-dec-status" class="status-msg"></div>
+            </div>
+
+            <details class="how-it-works">
+                <summary>How it works</summary>
+                <p>Directly parses the RIFF/WAV binary headers to locate the raw PCM data chunk. It modifies the Least Significant Bit (LSB) of the audio samples to inject binary data. The subtle modification introduces negligible background noise, making it undetectable to the human ear.</p>
+            </details>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- UI Helpers ---
+    function switchTool(toolId) {
+        document.querySelectorAll('.tool-section').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.nav-tab').forEach(el => el.classList.remove('active'));
+        document.getElementById(toolId).classList.add('active');
+        event.currentTarget.classList.add('active');
+    }
+
+    function switchMode(prefix, mode) {
+        document.querySelectorAll(`#${prefix}-encode, #${prefix}-decode`).forEach(el => el.classList.remove('active'));
+        
+        // Find the specific mode-tabs container for this section
+        const section = document.getElementById(`${prefix}-encode`).parentElement;
+        section.querySelectorAll('.mode-tab').forEach(el => el.classList.remove('active'));
+        
+        document.getElementById(`${prefix}-${mode}`).classList.add('active');
+        event.currentTarget.classList.add('active');
+    }
+
+    function updateFileName(input, displayId) {
+        const display = document.getElementById(displayId);
+        if (input.files.length > 0) {
+            display.innerText = input.files[0].name;
+        } else {
+            display.innerText = "";
+        }
+    }
+
+    function setBtnLoading(btnId, isLoading) {
+        const btn = document.getElementById(btnId);
+        if (isLoading) {
+            btn.classList.add('loading');
+            btn.disabled = true;
+        } else {
+            btn.classList.remove('loading');
+            btn.disabled = false;
+        }
+    }
+
+    // ==========================================
+    // 1A. IMAGE STEGO LOGIC
+    // ==========================================
+    async function getCanvasFromImage(file) {
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            const url = URL.createObjectURL(file);
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                canvas.width = img.width; canvas.height = img.height;
+                const ctx = canvas.getContext('2d', { willReadFrequently: true });
+                ctx.drawImage(img, 0, 0);
+                URL.revokeObjectURL(url);
+                resolve({ ctx, canvas, imgData: ctx.getImageData(0, 0, canvas.width, canvas.height) });
+            };
+            img.onerror = () => reject(new Error("Failed to read image."));
+            img.src = url;
+        });
+    }
+
+    async function execImgEncode() {
+        const file = document.getElementById('img-enc-file').files[0];
+        const text = document.getElementById('img-enc-text').value;
+        const pass = document.getElementById('img-enc-pass').value;
+
+        if (!file || !text || !pass) {
+            return Aegis.showStatus('img-enc-status', 'Error: Image, payload, and password are required.', true);
+        }
+
+        setBtnLoading('img-enc-btn', true);
+        
+        try {
+            // 1. Encrypt Data
+            const salt = crypto.getRandomValues(new Uint8Array(16));
+            const iv = crypto.getRandomValues(new Uint8Array(12));
+            const key = await Aegis.deriveKey(pass, salt);
+            
+            const encodedText = new TextEncoder().encode(text);
+            const ciphertextBuffer = await crypto.subtle.encrypt({name: "AES-GCM", iv: iv}, key, encodedText);
+            const ciphertext = new Uint8Array(ciphertextBuffer);
+
+            // Structure: [Length 4B][Salt 16B][IV 12B][Ciphertext]
+            const payloadLength = salt.length + iv.length + ciphertext.length;
+            const fullPayload = new Uint8Array(4 + payloadLength);
+            
+            fullPayload[0] = (payloadLength >> 24) & 255;
+            fullPayload[1] = (payloadLength >> 16) & 255;
+            fullPayload[2] = (payloadLength >> 8) & 255;
+            fullPayload[3] = payloadLength & 255;
+            
+            fullPayload.set(salt, 4);
+            fullPayload.set(iv, 20);
+            fullPayload.set(ciphertext, 32);
+
+            const bits = Aegis.bytesToBits(fullPayload);
+
+            // 2. Embed via Canvas
+            const { ctx, canvas, imgData } = await getCanvasFromImage(file);
+            const data = imgData.data;
+
+            // Capacity Check (RGB channels only)
+            const capacity = Math.floor((data.length / 4) * 3);
+            if (bits.length > capacity) {
+                throw new Error(`Payload too large! Need ${bits.length} bits, but image capacity is ${capacity} bits.`);
+            }
+
+            let bitIdx = 0;
+            for (let i = 0; i < data.length && bitIdx < bits.length; i++) {
+                if ((i + 1) % 4 === 0) continue; // Skip Alpha
+                data[i] = (data[i] & ~1) | bits[bitIdx];
+                bitIdx++;
+            }
+
+            ctx.putImageData(imgData, 0, 0);
+
+            // 3. Output
+            canvas.toBlob((blob) => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `aegis_stego_${Date.now()}.png`;
+                a.click();
+                URL.revokeObjectURL(url);
+                Aegis.showStatus('img-enc-status', 'Success! Stego PNG generated and downloaded.', false);
+                Aegis.incrementOp();
+            }, 'image/png');
+
+        } catch (err) {
+            Aegis.showStatus('img-enc-status', err.message, true);
+        } finally {
+            setBtnLoading('img-enc-btn', false);
+        }
+    }
+
+    async function execImgDecode() {
+        const file = document.getElementById('img-dec-file').files[0];
+        const pass = document.getElementById('img-dec-pass').value;
+
+        if (!file || !pass) {
+            return Aegis.showStatus('img-dec-status', 'Error: Stego image and password are required.', true);
+        }
+
+        setBtnLoading('img-dec-btn', true);
+        document.getElementById('img-dec-out').innerText = "Processing...";
+
+        try {
+            const { imgData } = await getCanvasFromImage(file);
+            const data = imgData.data;
+
+            // 1. Extract 32-bit length
+            const lenBits =[];
+            let i = 0;
+            while(lenBits.length < 32 && i < data.length) {
+                if ((i + 1) % 4 !== 0) lenBits.push(data[i] & 1);
+                i++;
+            }
+            
+            const lenBytes = Aegis.bitsToBytes(lenBits);
+            const payloadLength = (lenBytes[0] << 24) | (lenBytes[1] << 16) | (lenBytes[2] << 8) | lenBytes[3];
+
+            if (payloadLength <= 0 || payloadLength > 50000000) {
+                throw new Error("Invalid payload length. Image may not contain stego data.");
+            }
+
+            // 2. Extract Payload
+            const payloadBits =[];
+            const targetBits = payloadLength * 8;
+            while(payloadBits.length < targetBits && i < data.length) {
+                if ((i + 1) % 4 !== 0) payloadBits.push(data[i] & 1);
+                i++;
+            }
+
+            if (payloadBits.length < targetBits) throw new Error("Image data is truncated.");
+
+            const fullPayload = Aegis.bitsToBytes(payloadBits);
+            
+            // 3. Decrypt
+            const salt = fullPayload.slice(0, 16);
+            const iv = fullPayload.slice(16, 28);
+            const ciphertext = fullPayload.slice(28);
+
+            const key = await Aegis.deriveKey(pass, salt);
+            
+            try {
+                const decryptedBuffer = await crypto.subtle.decrypt({name: "AES-GCM", iv: iv}, key, ciphertext);
+                const plaintext = new TextDecoder().decode(decryptedBuffer);
+                
+                document.getElementById('img-dec-out').innerText = plaintext;
+                Aegis.showStatus('img-dec-status', 'Success! Payload extracted and decrypted.', false);
+                Aegis.incrementOp();
+            } catch (decErr) {
+                throw new Error("Decryption failed. Incorrect password or corrupted data.");
+            }
+
+        } catch (err) {
+            document.getElementById('img-dec-out').innerText = "Awaiting decryption...";
+            Aegis.showStatus('img-dec-status', err.message, true);
+        } finally {
+            setBtnLoading('img-dec-btn', false);
+        }
+    }
+
+    // ==========================================
+    // 1B & 1C. ZW UNICODE STEGO (Emoji & Text)
+    // ==========================================
+    // Core ZW Logic
+    function strToZW(str, char0, char1, marker) {
+        const bytes = new TextEncoder().encode(str);
+        const bits = Aegis.bytesToBits(bytes);
+        let zwStr = marker;
+        for (let b of bits) {
+            zwStr += b === 0 ? char0 : char1;
+        }
+        zwStr += marker;
+        return zwStr;
+    }
+
+    function zwToStr(stegoStr, char0, char1, marker) {
+        const parts = stegoStr.split(marker);
+        if (parts.length < 3) throw new Error("No stego marker found in text.");
+        
+        const payload = parts[1]; // Get string between markers
+        const bits =[];
+        for (let i=0; i<payload.length; i++) {
+            if (payload[i] === char0) bits.push(0);
+            else if (payload[i] === char1) bits.push(1);
+        }
+        
+        const bytes = Aegis.bitsToBytes(bits);
+        return new TextDecoder().decode(bytes);
+    }
+
+    // Emoji specifics
+    const E_Z0 = '\u200C'; // ZWNJ
+    const E_Z1 = '\u200D'; // ZWJ
+    const E_MARK = '\u200B'; // ZWSP
+
+    function execEmojiEncode() {
+        const cover = document.getElementById('emj-enc-cover').value || '🛡️';
+        const secret = document.getElementById('emj-enc-text').value;
+        if (!secret) return Aegis.showStatus('emj-enc-status', 'Secret text required.', true);
+        
+        const zw = strToZW(secret, E_Z0, E_Z1, E_MARK);
+        const result = cover + zw;
+        document.getElementById('emj-enc-out').innerText = result;
+        Aegis.showStatus('emj-enc-status', 'Success! Emojis generated.');
+        Aegis.incrementOp();
+    }
+
+    function execEmojiDecode() {
+        const input = document.getElementById('emj-dec-text').value;
+        if (!input) return Aegis.showStatus('emj-dec-status', 'Input required.', true);
+        
+        try {
+            const secret = zwToStr(input, E_Z0, E_Z1, E_MARK);
+            document.getElementById('emj-dec-out').innerText = secret;
+            Aegis.showStatus('emj-dec-status', 'Extracted successfully.');
+            Aegis.incrementOp();
+        } catch (e) {
+            Aegis.showStatus('emj-dec-status', 'Extraction failed: ' + e.message, true);
+        }
+    }
+
+    // Text specifics
+    const T_Z0 = '\u2060'; // Word Joiner
+    const T_Z1 = '\u2062'; // Invisible Times
+    const T_MARK = '\u2063'; // Invisible Separator
+
+    function execTextEncode() {
+        let cover = document.getElementById('txt-enc-cover').value;
+        const secret = document.getElementById('txt-enc-secret').value;
+        if (!cover || !secret) return Aegis.showStatus('txt-enc-status', 'Both fields required.', true);
+        
+        // Inject after first character to prevent stripping in some cases
+        const firstChar = cover.charAt(0);
+        const rest = cover.slice(1);
+        
+        const zw = strToZW(secret, T_Z0, T_Z1, T_MARK);
+        document.getElementById('txt-enc-out').innerText = firstChar + zw + rest;
+        Aegis.showStatus('txt-enc-status', 'Success! Text generated.');
+        Aegis.incrementOp();
+    }
+
+    function execTextDecode() {
+        const input = document.getElementById('txt-dec-input').value;
+        if (!input) return Aegis.showStatus('txt-dec-status', 'Input required.', true);
+        
+        try {
+            const secret = zwToStr(input, T_Z0, T_Z1, T_MARK);
+            document.getElementById('txt-dec-out').innerText = secret;
+            Aegis.showStatus('txt-dec-status', 'Extracted successfully.');
+            Aegis.incrementOp();
+        } catch (e) {
+            Aegis.showStatus('txt-dec-status', 'Extraction failed: ' + e.message, true);
+        }
+    }
+
+    // ==========================================
+    // 1D. AUDIO STEGO (WAV LSB)
+    // ==========================================
+    function getWavDataChunk(buffer) {
+        const view = new DataView(buffer);
+        let offset = 12; // Skip RIFF and WAVE
+        
+        // Safety check
+        if (view.getUint32(0, false) !== 0x52494646) throw new Error("Not a valid RIFF file"); // 'RIFF'
+        if (view.getUint32(8, false) !== 0x57415645) throw new Error("Not a valid WAVE file"); // 'WAVE'
+
+        while (offset < view.byteLength) {
+            const chunkId = view.getUint32(offset, false);
+            const chunkSize = view.getUint32(offset + 4, true);
+            
+            if (chunkId === 0x64617461) { // 'data'
+                return { offset: offset + 8, size: chunkSize };
+            }
+            offset += 8 + chunkSize;
+        }
+        throw new Error("Could not locate PCM data chunk in WAV.");
+    }
+
+    async function execAudioEncode() {
+        const file = document.getElementById('aud-enc-file').files[0];
+        const text = document.getElementById('aud-enc-text').value;
+
+        if (!file || !text) return Aegis.showStatus('aud-enc-status', 'WAV file and secret message required.', true);
+
+        setBtnLoading('aud-enc-btn', true);
+
+        try {
+            const arrayBuffer = await file.arrayBuffer();
+            const { offset, size } = getWavDataChunk(arrayBuffer);
+            const view = new Uint8Array(arrayBuffer, offset, size);
+
+            // Construct payload: [Length 4B] + TextBytes
+            const textBytes = new TextEncoder().encode(text);
+            const payload = new Uint8Array(4 + textBytes.length);
+            const len = textBytes.length;
+            payload[0] = (len >> 24) & 255;
+            payload[1] = (len >> 16) & 255;
+            payload[2] = (len >> 8) & 255;
+            payload[3] = len & 255;
+            payload.set(textBytes, 4);
+
+            const bits = Aegis.bytesToBits(payload);
+
+            if (bits.length > view.length) {
+                throw new Error("Payload is too large for this audio file.");
+            }
+
+            // Embed into LSB of raw PCM data
+            for (let i = 0; i < bits.length; i++) {
+                view[i] = (view[i] & ~1) | bits[i];
+            }
+
+            // Create new WAV file Blob
+            const newBlob = new Blob([arrayBuffer], { type: 'audio/wav' });
+            const url = URL.createObjectURL(newBlob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `aegis_stego_${Date.now()}.wav`;
+            a.click();
+            URL.revokeObjectURL(url);
+            
+            Aegis.showStatus('aud-enc-status', 'Success! Stego WAV generated and downloaded.', false);
+            Aegis.incrementOp();
+
+        } catch (err) {
+            Aegis.showStatus('aud-enc-status', err.message, true);
+        } finally {
+            setBtnLoading('aud-enc-btn', false);
+        }
+    }
+
+    async function execAudioDecode() {
+        const file = document.getElementById('aud-dec-file').files[0];
+        if (!file) return Aegis.showStatus('aud-dec-status', 'Stego WAV file required.', true);
+
+        setBtnLoading('aud-dec-btn', true);
+        document.getElementById('aud-dec-out').innerText = "Processing...";
+
+        try {
+            const arrayBuffer = await file.arrayBuffer();
+            const { offset, size } = getWavDataChunk(arrayBuffer);
+            const view = new Uint8Array(arrayBuffer, offset, size);
+
+            // Extract length (first 32 bits)
+            const lenBits =[];
+            for(let i=0; i<32; i++) {
+                lenBits.push(view[i] & 1);
+            }
+            const lenBytes = Aegis.bitsToBytes(lenBits);
+            const payloadLength = (lenBytes[0] << 24) | (lenBytes[1] << 16) | (lenBytes[2] << 8) | lenBytes[3];
+
+            if (payloadLength <= 0 || payloadLength > 10000000) {
+                throw new Error("Invalid stego payload length detected.");
+            }
+
+            // Extract payload
+            const payloadBits =[];
+            const targetBits = 32 + (payloadLength * 8);
+            for (let i=32; i < targetBits; i++) {
+                if (i >= view.length) throw new Error("Audio data truncated.");
+                payloadBits.push(view[i] & 1);
+            }
+
+            const textBytes = Aegis.bitsToBytes(payloadBits);
+            const text = new TextDecoder().decode(textBytes);
+            
+            document.getElementById('aud-dec-out').innerText = text;
+            Aegis.showStatus('aud-dec-status', 'Payload extracted successfully.', false);
+            Aegis.incrementOp();
+
+        } catch (err) {
+            document.getElementById('aud-dec-out').innerText = "Awaiting decryption...";
+            Aegis.showStatus('aud-dec-status', err.message, true);
+        } finally {
+            setBtnLoading('aud-dec-btn', false);
+        }
+    }
+</script>
+
+</body>
+</html>

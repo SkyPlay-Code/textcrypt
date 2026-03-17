@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aegis · 5b — Diceware Passphrase</title>
+<style>
+  :root {
+    --bg:#0f1115; --panel:#1a1d24; --border:#2a2e39;
+    --primary:#3b82f6; --primary-hover:#2563eb;
+    --text:#e2e8f0; --text-muted:#94a3b8;
+    --error:#ef4444; --success:#22c55e; --warning:#f59e0b;
+    --mono:'Fira Code','Courier New',monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',system-ui,sans-serif;}
+  body{background:var(--bg);color:var(--text);padding:30px;min-height:100vh;}
+  h2{font-size:1.4rem;margin-bottom:6px;}
+  .subtitle{color:var(--text-muted);font-size:.85rem;margin-bottom:24px;}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:24px;max-width:760px;margin:0 auto 28px;}
+  .card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px;}
+  .card-header h3{font-size:1.1rem;margin:0;}
+  .badge{padding:3px 10px;border-radius:20px;font-size:.7rem;font-weight:700;text-transform:uppercase;background:rgba(34,197,94,.15);color:var(--success);}
+  .badge.warn{background:rgba(245,158,11,.15);color:var(--warning);}
+  .fg{margin-bottom:18px;}
+  label{display:block;margin-bottom:7px;font-size:.85rem;color:var(--text-muted);font-weight:500;}
+  select{width:auto;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:.88rem;cursor:pointer;}
+  select:focus{outline:none;border-color:var(--primary);}
+  input[type=text]{width:100%;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:.9rem;}
+  input[type=text]:focus{outline:none;border-color:var(--primary);}
+
+  /* Wordlist upload */
+  .upload-zone{border:2px dashed var(--border);border-radius:8px;padding:24px 20px;text-align:center;cursor:pointer;transition:.2s;background:rgba(255,255,255,.01);}
+  .upload-zone:hover,.upload-zone.over{border-color:var(--primary);background:rgba(59,130,246,.06);}
+  .upload-zone p{color:var(--text-muted);font-size:.88rem;pointer-events:none;}
+  .upload-zone input{display:none;}
+  .wordlist-badge{display:inline-flex;align-items:center;gap:8px;margin-top:10px;padding:7px 14px;background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);border-radius:6px;font-size:.82rem;color:var(--success);font-family:var(--mono);}
+
+  .slider-row{display:flex;align-items:center;gap:12px;}
+  .slider-row input[type=range]{flex:1;accent-color:var(--primary);cursor:pointer;height:6px;}
+  .slider-cap{font-size:.78rem;color:var(--text-muted);}
+  .slider-num{font-family:var(--mono);font-size:1.1rem;font-weight:700;color:var(--primary);min-width:28px;text-align:right;}
+
+  .stats-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:18px;}
+  @media(max-width:520px){.stats-grid{grid-template-columns:1fr 1fr;}}
+  .stat{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:11px 13px;}
+  .stat-lbl{font-size:.7rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;}
+  .stat-num{font-size:1.15rem;font-weight:700;font-family:var(--mono);}
+  .stat-sub{font-size:.73rem;color:var(--text-muted);margin-top:2px;}
+
+  /* Passphrase output */
+  .phrase-card{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:18px;margin-bottom:10px;}
+  .phrase-words{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;}
+  .phrase-word{padding:6px 12px;background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.25);border-radius:6px;font-size:1rem;font-weight:600;color:var(--primary);}
+  .phrase-sep-preview{font-family:var(--mono);font-size:.88rem;word-break:break-all;color:var(--text);margin-top:4px;line-height:1.6;padding:8px 10px;background:rgba(255,255,255,.03);border-radius:5px;border:1px solid var(--border);}
+  .phrase-list{display:flex;flex-direction:column;gap:8px;}
+
+  .btn{display:inline-flex;align-items:center;gap:7px;padding:10px 18px;background:var(--primary);color:#fff;border:none;border-radius:6px;font-size:.9rem;font-weight:600;cursor:pointer;transition:background .2s;}
+  .btn:hover{background:var(--primary-hover);}
+  .btn:disabled{background:var(--border);color:var(--text-muted);cursor:not-allowed;}
+  .btn-sm{background:transparent;border:1px solid var(--border);color:var(--text);padding:7px 13px;font-size:.82rem;}
+  .btn-sm:hover{background:var(--border);}
+  .btn-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}
+
+  .gen-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px;}
+  .gen-row label{margin:0;white-space:nowrap;font-size:.85rem;}
+
+  .sep-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:18px;}
+  .sep-row label{margin:0;white-space:nowrap;font-size:.85rem;}
+  .sep-custom{width:80px !important;padding:7px 10px;font-family:var(--mono);}
+
+  .notice{padding:12px 14px;border-radius:6px;font-size:.82rem;background:rgba(245,158,11,.08);color:var(--warning);border:1px solid rgba(245,158,11,.2);margin-bottom:18px;line-height:1.5;}
+  .status{margin-top:10px;padding:9px 13px;border-radius:6px;font-size:.83rem;display:none;}
+  .status.ok{background:rgba(34,197,94,.1);color:var(--success);border:1px solid rgba(34,197,94,.25);display:block;}
+  .status.err{background:rgba(239,68,68,.1);color:var(--error);border:1px solid rgba(239,68,68,.25);display:block;}
+
+  details{margin-top:22px;padding:14px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:6px;font-size:.83rem;color:var(--text-muted);}
+  details summary{cursor:pointer;font-weight:600;color:var(--text);}
+  details p{margin-top:10px;line-height:1.6;}
+  code{background:rgba(255,255,255,.07);padding:1px 5px;border-radius:3px;font-family:var(--mono);}
+</style>
+</head>
+<body>
+<div style="max-width:760px;margin:0 auto;">
+  <h2>5b — Diceware Passphrase Generator</h2>
+  <p class="subtitle">EFF Large Wordlist · cryptographically random word selection · entropy display</p>
+
+  <div class="card">
+    <div class="card-header">
+      <h3>Diceware Generator</h3>
+      <span class="badge" id="wl-badge">⚠ No wordlist loaded</span>
+    </div>
+
+    <!-- Wordlist upload -->
+    <div class="fg">
+      <label>EFF Wordlist File</label>
+      <div class="notice">
+        Upload your EFF Large Wordlist (<code>eff_large_wordlist.txt</code>).
+        Expected format: each line is <code>diceroll&lt;tab&gt;word</code> (e.g. <code>11111&nbsp;&nbsp;&nbsp;abacus</code>)
+        or just one word per line. The file stays entirely in your browser — never uploaded anywhere.
+      </div>
+      <div class="upload-zone" id="wl-zone"
+           ondragover="event.preventDefault();this.classList.add('over')"
+           ondragleave="this.classList.remove('over')"
+           ondrop="onWlDrop(event)">
+        <p>Drag &amp; drop your wordlist .txt here, or click to browse</p>
+        <input type="file" id="wl-file" accept=".txt" onchange="loadWordlist(this)" onclick="event.stopPropagation()">
+        <div id="wl-info"></div>
+      </div>
+      <div id="wl-status" class="status"></div>
+    </div>
+
+    <!-- Word count -->
+    <div class="fg">
+      <label>Word Count — <strong id="wc-lbl" style="color:var(--primary)">6</strong> words</label>
+      <div class="slider-row">
+        <span class="slider-cap">3</span>
+        <input type="range" id="wc" min="3" max="12" value="6" oninput="onWc()">
+        <span class="slider-cap">12</span>
+        <span class="slider-num" id="wc-num">6</span>
+      </div>
+    </div>
+
+    <!-- Separator -->
+    <div class="sep-row">
+      <label>Separator:</label>
+      <select id="sep-select" onchange="onSepChange()">
+        <option value="-">Hyphen ( - )</option>
+        <option value=" ">Space ( )</option>
+        <option value=".">Period ( . )</option>
+        <option value="_">Underscore ( _ )</option>
+        <option value="">None</option>
+        <option value="custom">Custom…</option>
+      </select>
+      <input type="text" id="sep-custom" class="sep-custom" placeholder="e.g. #" style="display:none;" oninput="refreshStats()">
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-grid">
+      <div class="stat">
+        <div class="stat-lbl">Entropy</div>
+        <div class="stat-num" id="ent-num" style="color:var(--primary)">—</div>
+        <div class="stat-sub">bits</div>
+      </div>
+      <div class="stat">
+        <div class="stat-lbl">Wordlist Size</div>
+        <div class="stat-num" id="wl-size-num">—</div>
+        <div class="stat-sub" id="wl-size-sub">words loaded</div>
+      </div>
+      <div class="stat">
+        <div class="stat-lbl">Crack Time</div>
+        <div class="stat-num" id="crack-num" style="font-size:.9rem;">—</div>
+        <div class="stat-sub">at 1B guesses/sec</div>
+      </div>
+    </div>
+
+    <!-- Generate row -->
+    <div class="gen-row">
+      <label>Generate</label>
+      <select id="count">
+        <option value="1">1 passphrase</option>
+        <option value="3" selected>3 passphrases</option>
+        <option value="5">5 passphrases</option>
+        <option value="10">10 passphrases</option>
+      </select>
+      <button class="btn" id="gen-btn" onclick="generateAll()" disabled>🎲 Generate</button>
+    </div>
+
+    <div class="phrase-list" id="phrase-list"></div>
+
+    <div class="btn-row">
+      <button class="btn btn-sm" onclick="copyAll()">Copy All</button>
+      <button class="btn btn-sm" onclick="downloadAll()">⬇ Download .txt</button>
+    </div>
+
+    <details>
+      <summary>How Diceware works</summary>
+      <p>
+        Diceware generates passphrases by randomly selecting words from a large wordlist.
+        Each word is chosen using <code>crypto.getRandomValues</code>, providing
+        <code>log₂(wordlistSize)</code> bits of entropy per word.
+        With the EFF Large Wordlist (7,776 words = 6<sup>5</sup> = 6 dice rolls),
+        each word contributes ~12.9 bits. A 6-word passphrase gives ~77 bits of entropy —
+        equivalent to a fully random ~13-character mixed-case alphanumeric password,
+        but far more memorable. Passphrases are considered the gold standard for human-memorable secrets.
+      </p>
+    </details>
+  </div>
+</div>
+
+<script>
+let _words = []; // loaded wordlist
+
+// ── Wordlist loading ──────────────────────────────────────────────────────────
+document.getElementById('wl-zone').addEventListener('click', () =>
+  document.getElementById('wl-file').click());
+
+function onWlDrop(e) {
+  e.preventDefault();
+  document.getElementById('wl-zone').classList.remove('over');
+  const f = e.dataTransfer.files[0];
+  if (!f) return;
+  try {
+    const dt = new DataTransfer(); dt.items.add(f);
+    document.getElementById('wl-file').files = dt.files;
+  } catch(_) {}
+  parseWordlistFile(f);
+}
+
+function loadWordlist(input) {
+  if (input.files[0]) parseWordlistFile(input.files[0]);
+}
+
+function parseWordlistFile(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    const text  = e.target.result;
+    const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+
+    // Support both "diceroll<tab>word" and plain word-per-line formats
+    const words = lines.map(line => {
+      const parts = line.split(/\t+/);
+      return parts.length >= 2 ? parts[1].trim().toLowerCase() : parts[0].trim().toLowerCase();
+    }).filter(w => w && /^[a-z]+$/.test(w));
+
+    if (words.length < 100) {
+      showWlStatus('File parsed but contains fewer than 100 valid words. Check the format.', true);
+      return;
+    }
+
+    _words = words;
+    document.getElementById('wl-info').innerHTML =
+      `<div class="wordlist-badge">✔ ${words.length.toLocaleString()} words loaded — ${file.name}</div>`;
+    document.getElementById('wl-badge').textContent = `✔ ${words.length.toLocaleString()} words`;
+    document.getElementById('wl-badge').className   = 'badge';
+    document.getElementById('gen-btn').disabled     = false;
+    document.getElementById('wl-size-num').textContent = words.length.toLocaleString();
+    document.getElementById('wl-size-sub').textContent = 'words loaded';
+    refreshStats();
+    showWlStatus(`✔ Wordlist loaded: ${words.length.toLocaleString()} words from "${file.name}".`, false);
+  };
+  reader.readAsText(file);
+}
+
+function showWlStatus(msg, isErr) {
+  const el = document.getElementById('wl-status');
+  el.textContent = msg;
+  el.className = 'status ' + (isErr ? 'err' : 'ok');
+  setTimeout(() => { el.style.display = 'none'; }, 7000);
+}
+
+// ── Stats ─────────────────────────────────────────────────────────────────────
+function getSep() {
+  const v = document.getElementById('sep-select').value;
+  return v === 'custom' ? document.getElementById('sep-custom').value : v;
+}
+
+function onSepChange() {
+  const v = document.getElementById('sep-select').value;
+  document.getElementById('sep-custom').style.display = v === 'custom' ? 'block' : 'none';
+  refreshStats();
+}
+
+function onWc() {
+  const v = document.getElementById('wc').value;
+  document.getElementById('wc-lbl').textContent = v;
+  document.getElementById('wc-num').textContent = v;
+  refreshStats();
+}
+
+function refreshStats() {
+  const wc    = +document.getElementById('wc').value;
+  const wsize = _words.length;
+  if (!wsize) return;
+
+  const bits  = +(Math.log2(wsize) * wc).toFixed(1);
+  document.getElementById('ent-num').textContent = bits;
+
+  // Crack time at 1 billion guesses/sec
+  const combos   = Math.pow(wsize, wc);
+  const secFull  = combos / 1e9;
+  document.getElementById('crack-num').textContent = formatTime(secFull / 2); // average = half
+}
+
+function formatTime(secs) {
+  if (!isFinite(secs) || secs > 1e30) return '∞ (heat death)';
+  if (secs < 1)       return '< 1 second';
+  if (secs < 60)      return Math.round(secs) + ' seconds';
+  if (secs < 3600)    return Math.round(secs/60) + ' minutes';
+  if (secs < 86400)   return Math.round(secs/3600) + ' hours';
+  if (secs < 31536000)return Math.round(secs/86400) + ' days';
+  if (secs < 3.15e10) return Math.round(secs/31536000) + ' years';
+  if (secs < 3.15e13) return (secs/3.15e10).toFixed(1) + 'K years';
+  if (secs < 3.15e16) return (secs/3.15e13).toFixed(1) + 'M years';
+  return (secs/3.15e16).toFixed(1) + 'B years';
+}
+
+// ── Generation ────────────────────────────────────────────────────────────────
+function randIndex(max) {
+  const limit = 256 - (256 % max);
+  const b = new Uint8Array(1);
+  let v;
+  do { crypto.getRandomValues(b); v = b[0]; } while (v >= limit);
+  return v % max;
+}
+
+// For large wordlists rejection-sample using 4 bytes for the index
+function randIndexLarge(max) {
+  const arr    = new Uint32Array(1);
+  const limit  = 0x100000000 - (0x100000000 % max);
+  let v;
+  do { crypto.getRandomValues(arr); v = arr[0]; } while (v >= limit);
+  return v % max;
+}
+
+function genPhrase(wordCount) {
+  const sep = getSep();
+  const words = [];
+  for (let i = 0; i < wordCount; i++) {
+    words.push(_words[randIndexLarge(_words.length)]);
+  }
+  return { words, phrase: words.join(sep) };
+}
+
+function generateAll() {
+  if (!_words.length) return;
+  const wc    = +document.getElementById('wc').value;
+  const count = +document.getElementById('count').value;
+  const list  = document.getElementById('phrase-list');
+  list.innerHTML = '';
+
+  for (let i = 0; i < count; i++) {
+    const { words, phrase } = genPhrase(wc);
+    const sep = getSep();
+
+    const card = document.createElement('div');
+    card.className = 'phrase-card';
+    card.innerHTML = `
+      <div class="phrase-words">${words.map(w =>
+        `<span class="phrase-word">${w}</span>`).join(
+        sep ? `<span style="color:var(--text-muted);font-size:.9rem;align-self:center;">${sep === ' ' ? '·' : sep}</span>` : ''
+      )}</div>
+      <div class="phrase-sep-preview" id="phr${i}">${phrase}</div>
+      <div style="margin-top:10px;">
+        <button class="btn btn-sm" id="cphr${i}" onclick="cpPhrase(${i},'${phrase.replace(/'/g,"\\'")}')">Copy</button>
+      </div>
+    `;
+    list.appendChild(card);
+  }
+}
+
+const _t = {};
+function cpPhrase(i, text) {
+  navigator.clipboard.writeText(text);
+  const btn = document.getElementById('cphr' + i), orig = btn.textContent;
+  if (_t[i]) clearInterval(_t[i]);
+  let t = 30; btn.textContent = t + 's';
+  _t[i] = setInterval(() => {
+    t--;
+    if (t <= 0) { clearInterval(_t[i]); navigator.clipboard.writeText(''); btn.textContent = orig; }
+    else btn.textContent = t + 's';
+  }, 1000);
+}
+
+function copyAll() {
+  const items = [...document.querySelectorAll('.phrase-sep-preview')].map(e => e.textContent);
+  if (items.length) navigator.clipboard.writeText(items.join('\n'));
+}
+
+function downloadAll() {
+  const items = [...document.querySelectorAll('.phrase-sep-preview')].map(e => e.textContent);
+  if (!items.length) return;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([items.join('\n')], {type:'text/plain'}));
+  a.download = 'passphrases.txt'; a.click();
+}
+</script>
+</body>
+</html>

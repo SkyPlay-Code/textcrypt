@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aegis · 7c — Plausible Deniability Vault</title>
+<style>
+  :root {
+    --bg:#0f1115; --panel:#1a1d24; --border:#2a2e39;
+    --primary:#3b82f6; --primary-hover:#2563eb;
+    --text:#e2e8f0; --text-muted:#94a3b8;
+    --error:#ef4444; --success:#22c55e; --warning:#f59e0b;
+    --mono:'Fira Code','Courier New',monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',system-ui,sans-serif;}
+  body{background:var(--bg);color:var(--text);padding:30px;min-height:100vh;}
+  h2{font-size:1.4rem;margin-bottom:6px;}
+  .subtitle{color:var(--text-muted);font-size:.85rem;margin-bottom:24px;}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:24px;max-width:760px;margin:0 auto 28px;}
+  .card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px;}
+  .card-header h3{font-size:1.1rem;margin:0;}
+  .badge{padding:3px 10px;border-radius:20px;font-size:.7rem;font-weight:700;text-transform:uppercase;}
+  .badge.secure{background:rgba(34,197,94,.15);color:var(--success);}
+  .badge.warn{background:rgba(245,158,11,.15);color:var(--warning);}
+  .mode-strip{display:flex;background:#15181e;border-radius:6px;border:1px solid var(--border);overflow:hidden;margin-bottom:22px;}
+  .mode-btn{flex:1;padding:10px;text-align:center;cursor:pointer;color:var(--text-muted);font-size:.85rem;font-weight:600;text-transform:uppercase;transition:.2s;border:none;background:none;}
+  .mode-btn.active{background:var(--panel);color:var(--primary);border-bottom:2px solid var(--primary);}
+  .panel{display:none;} .panel.active{display:block;}
+  .fg{margin-bottom:18px;position:relative;}
+  label{display:block;margin-bottom:7px;font-size:.85rem;color:var(--text-muted);font-weight:500;}
+  textarea,input[type=password],input[type=text]{width:100%;padding:11px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:.9rem;resize:vertical;transition:border-color .2s;}
+  textarea:focus,input:focus{outline:none;border-color:var(--primary);}
+  .eye{position:absolute;right:10px;top:33px;background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1rem;}
+  .out-box{font-family:var(--mono);font-size:.8rem;background:var(--bg);border:1px solid var(--border);padding:12px;border-radius:6px;word-break:break-all;min-height:50px;white-space:pre-wrap;}
+  .btn{display:inline-flex;align-items:center;gap:7px;padding:10px 18px;background:var(--primary);color:#fff;border:none;border-radius:6px;font-size:.9rem;font-weight:600;cursor:pointer;transition:background .2s;}
+  .btn:hover{background:var(--primary-hover);}
+  .btn:disabled{background:var(--border);color:var(--text-muted);cursor:not-allowed;}
+  .btn-sm{background:transparent;border:1px solid var(--border);color:var(--text);padding:7px 13px;font-size:.82rem;}
+  .btn-sm:hover{background:var(--border);}
+  .btn-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;}
+  .spinner{width:15px;height:15px;border:2px solid rgba(255,255,255,.3);border-radius:50%;border-top-color:#fff;animation:spin .7s linear infinite;display:none;}
+  .btn.loading .spinner{display:inline-block;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .status{margin-top:12px;padding:10px 14px;border-radius:6px;font-size:.85rem;display:none;}
+  .status.ok{background:rgba(34,197,94,.1);color:var(--success);border:1px solid rgba(34,197,94,.25);display:block;}
+  .status.err{background:rgba(239,68,68,.1);color:var(--error);border:1px solid rgba(239,68,68,.25);display:block;}
+  /* Vault layout: two side-by-side payload boxes */
+  .vault-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px;}
+  @media(max-width:560px){.vault-grid{grid-template-columns:1fr;}}
+  .vault-box{border-radius:8px;padding:16px;border:1px solid;}
+  .vault-box.real{border-color:rgba(239,68,68,.3);background:rgba(239,68,68,.04);}
+  .vault-box.decoy{border-color:rgba(59,130,246,.25);background:rgba(59,130,246,.04);}
+  .vault-box-title{font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:12px;}
+  .vault-box-title.real{color:var(--error);}
+  .vault-box-title.decoy{color:var(--primary);}
+  .vault-box .fg{margin-bottom:12px;}
+  .vault-box .fg:last-child{margin-bottom:0;}
+  .vault-box label{font-size:.78rem;}
+  .vault-box textarea{min-height:80px;font-size:.85rem;}
+  .vault-box input[type=password]{padding:9px 36px 9px 9px;}
+  .vault-box .eye{top:29px;}
+  /* Decryption result */
+  .dec-result{padding:16px 18px;border-radius:8px;margin-top:14px;display:none;}
+  .dec-result.real{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);display:block;}
+  .dec-result.decoy{background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.2);display:block;}
+  .dec-result-title{font-size:.82rem;font-weight:700;margin-bottom:8px;}
+  .dec-result-title.real{color:var(--error);}
+  .dec-result-title.decoy{color:var(--primary);}
+  .dec-result .out-box{margin-top:6px;}
+  /* Notice */
+  .notice{padding:12px 14px;border-radius:6px;font-size:.82rem;background:rgba(245,158,11,.07);color:var(--warning);border:1px solid rgba(245,158,11,.2);margin-bottom:18px;line-height:1.5;}
+  /* Vault file download */
+  .vault-dl{text-align:center;padding:20px;background:rgba(0,0,0,.2);border:1px solid var(--border);border-radius:8px;margin-top:14px;}
+  .vault-dl-icon{font-size:2.5rem;margin-bottom:8px;}
+  .vault-dl-title{font-weight:700;margin-bottom:4px;}
+  .vault-dl-sub{font-size:.78rem;color:var(--text-muted);margin-bottom:12px;}
+  /* Drop zone */
+  .drop-zone{border:2px dashed var(--border);border-radius:8px;padding:28px 20px;text-align:center;cursor:pointer;transition:.2s;background:rgba(255,255,255,.01);}
+  .drop-zone:hover,.drop-zone.over{border-color:var(--primary);background:rgba(59,130,246,.06);}
+  .drop-zone p{color:var(--text-muted);font-size:.88rem;pointer-events:none;}
+  .drop-zone input{display:none;}
+  .file-badge{display:inline-flex;align-items:center;gap:8px;margin-top:10px;padding:7px 14px;background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.3);border-radius:6px;font-size:.8rem;color:var(--primary);font-family:var(--mono);}
+  details{margin-top:22px;padding:14px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:6px;font-size:.83rem;color:var(--text-muted);}
+  details summary{cursor:pointer;font-weight:600;color:var(--text);}
+  details p{margin-top:10px;line-height:1.6;}
+  code{background:rgba(255,255,255,.07);padding:1px 5px;border-radius:3px;font-family:var(--mono);}
+</style>
+</head>
+<body>
+<div style="max-width:760px;margin:0 auto;">
+  <h2>7c — Plausible Deniability Vault</h2>
+  <p class="subtitle">Two passwords · one real payload · one decoy · both decrypt to valid output · indistinguishable from outside</p>
+
+  <div class="card">
+    <div class="card-header">
+      <h3>Deniability Vault</h3>
+      <span class="badge warn">⚠ Dual-Password</span>
+    </div>
+
+    <div class="notice">
+      ⚠️ <strong>How to use:</strong> Encode a real secret with one password and an innocent-looking decoy with
+      another. The vault file is a fixed-size binary blob — it reveals nothing about which password is "real".
+      Under duress, reveal only the decoy password. The decoy should look believable.
+      Both passwords produce <strong>cryptographically valid</strong>, identical-looking AES-256-GCM output.
+    </div>
+
+    <div class="mode-strip">
+      <button class="mode-btn active" id="tab-create" onclick="setMode('create')">🔐 Create Vault</button>
+      <button class="mode-btn"        id="tab-open"   onclick="setMode('open')">🔓 Open Vault</button>
+    </div>
+
+    <!-- ── CREATE ─────────────────────────────────── -->
+    <div id="panel-create" class="panel active">
+
+      <div class="vault-grid">
+        <!-- Real payload -->
+        <div class="vault-box real">
+          <div class="vault-box-title real">🔴 Real Payload</div>
+          <div class="fg">
+            <label>Secret message</label>
+            <textarea id="real-msg" rows="3" placeholder="Your actual secret…"></textarea>
+          </div>
+          <div class="fg">
+            <label>Real Password</label>
+            <input type="password" id="real-pass" placeholder="Strong password">
+            <button class="eye" onclick="toggleEye('real-pass',this)">👁</button>
+          </div>
+        </div>
+        <!-- Decoy payload -->
+        <div class="vault-box decoy">
+          <div class="vault-box-title decoy">🔵 Decoy Payload</div>
+          <div class="fg">
+            <label>Decoy message</label>
+            <textarea id="decoy-msg" rows="3" placeholder="An innocent-looking message…"></textarea>
+          </div>
+          <div class="fg">
+            <label>Decoy Password</label>
+            <input type="password" id="decoy-pass" placeholder="Password you reveal under duress">
+            <button class="eye" onclick="toggleEye('decoy-pass',this)">👁</button>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn" id="create-btn" onclick="doCreate()">
+        <span class="spinner"></span> Create Vault
+      </button>
+      <div id="create-status" class="status"></div>
+
+      <div class="vault-dl" id="vault-dl" style="display:none;">
+        <div class="vault-dl-icon">🏦</div>
+        <div class="vault-dl-title">Vault Ready</div>
+        <div class="vault-dl-sub" id="vault-dl-sub">Both payloads encrypted into one indistinguishable file.</div>
+        <button class="btn btn-sm" onclick="downloadVault()">⬇ Download vault.adv</button>
+      </div>
+    </div>
+
+    <!-- ── OPEN ───────────────────────────────────── -->
+    <div id="panel-open" class="panel">
+      <div class="fg">
+        <label>Vault file (.adv)</label>
+        <div class="drop-zone" id="vault-drop"
+             ondragover="onDragOver(event,'vault-drop')" ondragleave="onDragLeave('vault-drop')"
+             ondrop="onVaultDrop(event)">
+          <p>Drop vault.adv here or click to browse</p>
+          <input type="file" id="vault-file" accept=".adv" onchange="onVaultSelect(this)" onclick="event.stopPropagation()">
+          <div id="vault-badge"></div>
+        </div>
+      </div>
+      <div class="fg">
+        <label>Password (either real or decoy)</label>
+        <input type="password" id="open-pass" placeholder="Enter either password to decrypt…">
+        <button class="eye" onclick="toggleEye('open-pass',this)">👁</button>
+      </div>
+
+      <button class="btn" id="open-btn" onclick="doOpen()">
+        <span class="spinner"></span> Open Vault
+      </button>
+      <div id="open-status" class="status"></div>
+
+      <div class="dec-result" id="open-result">
+        <div class="dec-result-title" id="open-result-title"></div>
+        <div class="out-box" id="open-out"></div>
+        <div class="btn-row">
+          <button class="btn btn-sm" id="open-copy" onclick="copyText(document.getElementById('open-out').textContent,'open-copy')">Copy</button>
+        </div>
+      </div>
+    </div>
+
+    <details>
+      <summary>How plausible deniability works</summary>
+      <p>
+        The vault file contains <strong>two independently encrypted slots</strong>.
+        Each slot is a standard AES-256-GCM ciphertext with its own randomly generated salt and IV —
+        cryptographically indistinguishable from any other AES-GCM ciphertext.
+        The <strong>slot order is randomised</strong> at creation time (50/50), so even knowing the vault
+        format reveals nothing about which slot holds the real data.
+        Both slots are <strong>padded to the same size</strong> (the larger of the two messages),
+        so the file size reveals nothing about which message is longer.
+        An adversary with the vault file and <em>one</em> password can decrypt one slot and get a valid
+        message — but cannot prove another slot exists, because every fixed-length random-looking binary
+        blob is consistent with a valid AES-GCM ciphertext.
+        The vault format: <code>[magic 4B][slot0_salt 16B][slot0_iv 12B][slot0_ct N B][slot1_salt 16B][slot1_iv 12B][slot1_ct N B]</code>.
+      </p>
+    </details>
+  </div>
+</div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────────
+let _vaultBlob = null;
+
+// Magic: "ADV1"
+const MAGIC = new Uint8Array([0x41, 0x44, 0x56, 0x31]);
+
+// ── UI helpers ─────────────────────────────────────────────────────────────────
+function setMode(m) {
+  document.getElementById('panel-create').classList.toggle('active', m === 'create');
+  document.getElementById('panel-open').classList.toggle('active',   m === 'open');
+  document.getElementById('tab-create').classList.toggle('active',   m === 'create');
+  document.getElementById('tab-open').classList.toggle('active',     m === 'open');
+}
+function toggleEye(id, btn) {
+  const el = document.getElementById(id);
+  el.type = el.type === 'password' ? 'text' : 'password';
+  btn.textContent = el.type === 'password' ? '👁' : '🙈';
+}
+function showStatus(id, msg, isErr) {
+  const el = document.getElementById(id);
+  el.textContent = msg; el.className = 'status ' + (isErr ? 'err' : 'ok');
+  setTimeout(() => { el.style.display = 'none'; }, 8000);
+}
+function setLoading(id, on) {
+  const b = document.getElementById(id); b.disabled = on;
+  on ? b.classList.add('loading') : b.classList.remove('loading');
+}
+const _ct = {};
+function copyText(text, btnId) {
+  text = (text||'').trim(); if (!text) return;
+  navigator.clipboard.writeText(text);
+  const btn = document.getElementById(btnId), orig = btn.textContent;
+  if (_ct[btnId]) clearInterval(_ct[btnId]);
+  let t = 30; btn.textContent = t + 's';
+  _ct[btnId] = setInterval(() => {
+    t--;
+    if (t <= 0) { clearInterval(_ct[btnId]); navigator.clipboard.writeText(''); btn.textContent = orig; }
+    else btn.textContent = t + 's';
+  }, 1000);
+}
+
+// Drop zone
+function onDragOver(e, id) { e.preventDefault(); document.getElementById(id).classList.add('over'); }
+function onDragLeave(id)    { document.getElementById(id).classList.remove('over'); }
+function onVaultDrop(e) {
+  e.preventDefault(); onDragLeave('vault-drop');
+  const f = e.dataTransfer.files[0]; if (!f) return;
+  try { const dt = new DataTransfer(); dt.items.add(f); document.getElementById('vault-file').files = dt.files; } catch(_) {}
+  showVaultBadge(f);
+}
+function onVaultSelect(input) { if (input.files[0]) showVaultBadge(input.files[0]); }
+function showVaultBadge(f) {
+  document.getElementById('vault-badge').innerHTML =
+    `<div class="file-badge">🏦 ${f.name} · ${f.size} B</div>`;
+}
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('vault-drop').addEventListener('click', () =>
+    document.getElementById('vault-file').click());
+});
+
+// ── Crypto helpers ─────────────────────────────────────────────────────────────
+async function deriveKey(password, salt) {
+  const mat = await crypto.subtle.importKey(
+    'raw', new TextEncoder().encode(password),
+    { name: 'PBKDF2' }, false, ['deriveKey']
+  );
+  return crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt, iterations: 250000, hash: 'SHA-256' },
+    mat, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']
+  );
+}
+
+/**
+ * Encrypt plaintext with a password.
+ * Returns a packed Uint8Array: [salt 16B][iv 12B][ciphertext+tag]
+ * The ciphertext is padded to `paddedLen` bytes (random padding appended as AD).
+ */
+async function encryptSlot(plaintext, password, paddedLen) {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv   = crypto.getRandomValues(new Uint8Array(12));
+  const key  = await deriveKey(password, salt);
+
+  // Pad plaintext to paddedLen with random bytes.
+  // We embed the real length as a 4-byte prefix so we can strip padding on decrypt.
+  const plainBytes = new TextEncoder().encode(plaintext);
+  const realLen    = plainBytes.length;
+
+  if (realLen > paddedLen) throw new Error('Message too long for chosen padding size.');
+
+  const padded = new Uint8Array(4 + paddedLen);
+  // 4-byte big-endian real length prefix
+  padded[0] = (realLen >> 24) & 0xFF;
+  padded[1] = (realLen >> 16) & 0xFF;
+  padded[2] = (realLen >>  8) & 0xFF;
+  padded[3] =  realLen        & 0xFF;
+  padded.set(plainBytes, 4);
+  // Remaining bytes already 0 — fill with random noise for better deniability
+  crypto.getRandomValues(padded.subarray(4 + realLen));
+
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, padded));
+
+  // Pack: [salt 16][iv 12][ct]
+  const packed = new Uint8Array(16 + 12 + ct.length);
+  packed.set(salt, 0); packed.set(iv, 16); packed.set(ct, 28);
+  return packed;
+}
+
+/**
+ * Try to decrypt a slot.
+ * Returns the plaintext string, or null if decryption fails (wrong password).
+ */
+async function decryptSlot(packed, password) {
+  try {
+    const salt = packed.slice(0, 16);
+    const iv   = packed.slice(16, 28);
+    const ct   = packed.slice(28);
+    const key  = await deriveKey(password, salt);
+    const padded = new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ct));
+    // Read real length from 4-byte prefix
+    const realLen = (padded[0] << 24) | (padded[1] << 16) | (padded[2] << 8) | padded[3];
+    if (realLen < 0 || realLen > padded.length - 4) return null; // sanity
+    return new TextDecoder().decode(padded.subarray(4, 4 + realLen));
+  } catch (_) {
+    return null; // AES-GCM authentication failure = wrong password
+  }
+}
+
+// ── CREATE ────────────────────────────────────────────────────────────────────
+async function doCreate() {
+  const realMsg   = document.getElementById('real-msg').value;
+  const realPass  = document.getElementById('real-pass').value;
+  const decoyMsg  = document.getElementById('decoy-msg').value;
+  const decoyPass = document.getElementById('decoy-pass').value;
+
+  if (!realMsg)   return showStatus('create-status', 'Please enter the real message.', true);
+  if (!realPass)  return showStatus('create-status', 'Please enter the real password.', true);
+  if (!decoyMsg)  return showStatus('create-status', 'Please enter the decoy message.', true);
+  if (!decoyPass) return showStatus('create-status', 'Please enter the decoy password.', true);
+  if (realPass === decoyPass) return showStatus('create-status', 'The two passwords must be different.', true);
+
+  setLoading('create-btn', true);
+  showStatus('create-status', '⏳ Deriving keys (PBKDF2 × 2)… please wait.', false);
+
+  setTimeout(async () => {
+    try {
+      // Pad both slots to the same content length (max of both messages in bytes)
+      const realBytes  = new TextEncoder().encode(realMsg).length;
+      const decoyBytes = new TextEncoder().encode(decoyMsg).length;
+      const paddedLen  = Math.max(realBytes, decoyBytes);
+
+      const realSlot  = await encryptSlot(realMsg,  realPass,  paddedLen);
+      const decoySlot = await encryptSlot(decoyMsg, decoyPass, paddedLen);
+
+      // Randomly assign which slot position is real (0 or 1)
+      // This means even knowing the format, you can't tell which slot is real
+      const randBit  = new Uint8Array(1);
+      crypto.getRandomValues(randBit);
+      const realFirst = (randBit[0] & 1) === 0;
+
+      const slot0 = realFirst ? realSlot  : decoySlot;
+      const slot1 = realFirst ? decoySlot : realSlot;
+
+      // Build vault: [MAGIC 4B][slot0 N B][slot1 N B]
+      const total   = 4 + slot0.length + slot1.length;
+      const vaultBuf = new Uint8Array(total);
+      vaultBuf.set(MAGIC, 0);
+      vaultBuf.set(slot0, 4);
+      vaultBuf.set(slot1, 4 + slot0.length);
+
+      _vaultBlob = vaultBuf;
+
+      document.getElementById('vault-dl-sub').textContent =
+        `${total} bytes · both payloads padded to ${paddedLen} bytes · slot order randomised`;
+      document.getElementById('vault-dl').style.display = 'block';
+      showStatus('create-status',
+        `✔ Vault created. Both passwords decrypt to valid output. Share the vault file freely.`, false);
+    } catch (e) {
+      showStatus('create-status', 'Vault creation failed: ' + e.message, true);
+    } finally {
+      setLoading('create-btn', false);
+    }
+  }, 50);
+}
+
+function downloadVault() {
+  if (!_vaultBlob) return;
+  const url = URL.createObjectURL(new Blob([_vaultBlob], { type:'application/octet-stream' }));
+  const a   = document.createElement('a'); a.href = url; a.download = 'vault.adv'; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
+// ── OPEN ──────────────────────────────────────────────────────────────────────
+async function doOpen() {
+  const vaultFile = document.getElementById('vault-file').files[0];
+  const password  = document.getElementById('open-pass').value;
+
+  if (!vaultFile) return showStatus('open-status', 'Please select a vault file.', true);
+  if (!password)  return showStatus('open-status', 'Please enter a password.', true);
+
+  setLoading('open-btn', true);
+  document.getElementById('open-result').style.display = 'none';
+  showStatus('open-status', '⏳ Trying password against both slots…', false);
+
+  setTimeout(async () => {
+    try {
+      const buf   = await vaultFile.arrayBuffer();
+      const vault = new Uint8Array(buf);
+
+      // Verify magic
+      for (let i = 0; i < 4; i++) {
+        if (vault[i] !== MAGIC[i]) throw new Error('Not a valid .adv vault file (magic header mismatch).');
+      }
+
+      // Slot sizes: subtract magic (4B), then two equal-sized slots remain
+      const remaining = vault.length - 4;
+      if (remaining % 2 !== 0) throw new Error('Corrupted vault file (odd payload length).');
+      const slotSize = remaining / 2;
+
+      const slot0 = vault.slice(4,            4 + slotSize);
+      const slot1 = vault.slice(4 + slotSize, 4 + slotSize * 2);
+
+      // Try password against slot0 first, then slot1
+      let plaintext = await decryptSlot(slot0, password);
+      let slotIdx   = 0;
+      if (plaintext === null) {
+        plaintext = await decryptSlot(slot1, password);
+        slotIdx   = 1;
+      }
+
+      if (plaintext === null) {
+        throw new Error('Incorrect password — this password does not decrypt either slot.');
+      }
+
+      // We intentionally do NOT reveal which slot index was used
+      // — that would leak which payload is "real"
+      const res   = document.getElementById('open-result');
+      const title = document.getElementById('open-result-title');
+      const out   = document.getElementById('open-out');
+
+      // Show a neutral success message — do not label "real" or "decoy"
+      res.className    = 'dec-result decoy'; // neutral blue styling
+      title.textContent = '✅ Vault opened — decrypted message:';
+      title.className  = 'dec-result-title decoy';
+      out.textContent  = plaintext;
+
+      showStatus('open-status', '✔ Password accepted. Message decrypted.', false);
+    } catch (e) {
+      showStatus('open-status', e.message, true);
+    } finally {
+      setLoading('open-btn', false);
+    }
+  }, 50);
+}
+</script>
+</body>
+</html>

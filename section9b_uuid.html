@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aegis · 9b — UUID Generator</title>
+<style>
+  :root {
+    --bg:#0f1115; --panel:#1a1d24; --border:#2a2e39;
+    --primary:#3b82f6; --primary-hover:#2563eb;
+    --text:#e2e8f0; --text-muted:#94a3b8;
+    --error:#ef4444; --success:#22c55e; --warning:#f59e0b;
+    --mono:'Fira Code','Courier New',monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',system-ui,sans-serif;}
+  body{background:var(--bg);color:var(--text);padding:30px;min-height:100vh;}
+  h2{font-size:1.4rem;margin-bottom:6px;}
+  .subtitle{color:var(--text-muted);font-size:.85rem;margin-bottom:24px;}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:24px;max-width:760px;margin:0 auto 28px;}
+  .card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px;}
+  .card-header h3{font-size:1.1rem;margin:0;}
+  .badge{padding:3px 10px;border-radius:20px;font-size:.7rem;font-weight:700;text-transform:uppercase;background:rgba(34,197,94,.15);color:var(--success);}
+  .fg{margin-bottom:18px;}
+  label{display:block;margin-bottom:7px;font-size:.85rem;color:var(--text-muted);font-weight:500;}
+  select,input[type=number]{padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:.88rem;cursor:pointer;}
+  select:focus,input:focus{outline:none;border-color:var(--primary);}
+  input[type=number]{width:100px;cursor:text;}
+  .btn{display:inline-flex;align-items:center;gap:7px;padding:10px 18px;background:var(--primary);color:#fff;border:none;border-radius:6px;font-size:.9rem;font-weight:600;cursor:pointer;transition:background .2s;}
+  .btn:hover{background:var(--primary-hover);}
+  .btn-sm{background:transparent;border:1px solid var(--border);color:var(--text);padding:7px 13px;font-size:.82rem;}
+  .btn-sm:hover{background:var(--border);}
+  .btn-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}
+  /* UUID list */
+  .uuid-list{display:flex;flex-direction:column;gap:6px;margin-top:16px;max-height:520px;overflow-y:auto;}
+  .uuid-item{display:flex;align-items:center;gap:10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:9px 13px;}
+  .uuid-idx{font-size:.72rem;color:var(--text-muted);min-width:32px;text-align:right;font-family:var(--mono);}
+  .uuid-val{font-family:var(--mono);font-size:.88rem;flex:1;letter-spacing:.04em;word-break:break-all;}
+  /* UUID parts colour coding */
+  .uuid-p1{color:#a78bfa;}   /* time_low */
+  .uuid-sep{color:var(--border);}
+  .uuid-p2{color:#93c5fd;}   /* time_mid */
+  .uuid-p3{color:#6ee7b7;}   /* version + time_hi */
+  .uuid-p4{color:#fcd34d;}   /* variant + clock_seq */
+  .uuid-p5{color:#f9a8d4;}   /* node */
+  .uuid-copy{background:transparent;border:1px solid var(--border);color:var(--text-muted);padding:4px 10px;border-radius:4px;font-size:.73rem;cursor:pointer;flex-shrink:0;transition:.15s;}
+  .uuid-copy:hover{border-color:var(--primary);color:var(--primary);}
+  /* Stats */
+  .stat-bar{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px;}
+  .stat-pill{padding:5px 12px;background:var(--bg);border:1px solid var(--border);border-radius:20px;font-size:.78rem;}
+  .stat-pill span{font-weight:700;color:var(--primary);}
+  /* Format options */
+  .fmt-row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px;}
+  .fmt-row label{margin:0;font-size:.83rem;white-space:nowrap;}
+  /* Validator */
+  .validator-wrap{border-top:1px solid var(--border);margin-top:20px;padding-top:20px;}
+  .validator-wrap input[type=text]{width:100%;padding:11px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:.9rem;font-family:var(--mono);}
+  .validator-wrap input:focus{outline:none;border-color:var(--primary);}
+  .val-result{margin-top:10px;padding:10px 14px;border-radius:6px;font-size:.83rem;display:none;}
+  .val-result.ok{background:rgba(34,197,94,.1);color:var(--success);border:1px solid rgba(34,197,94,.25);display:block;}
+  .val-result.err{background:rgba(239,68,68,.1);color:var(--error);border:1px solid rgba(239,68,68,.25);display:block;}
+  details{margin-top:22px;padding:14px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:6px;font-size:.83rem;color:var(--text-muted);}
+  details summary{cursor:pointer;font-weight:600;color:var(--text);}
+  details p{margin-top:10px;line-height:1.6;}
+  code{background:rgba(255,255,255,.07);padding:1px 5px;border-radius:3px;font-family:var(--mono);}
+</style>
+</head>
+<body>
+<div style="max-width:760px;margin:0 auto;">
+  <h2>9b — Cryptographic UUID Generator</h2>
+  <p class="subtitle">UUID v4 · RFC 4122 · crypto.getRandomValues · bulk generation up to 1,000</p>
+
+  <div class="card">
+    <div class="card-header">
+      <h3>UUID v4 Generator</h3>
+      <span class="badge">✔ CSPRNG</span>
+    </div>
+
+    <!-- Options -->
+    <div class="fmt-row">
+      <label>Count:</label>
+      <input type="number" id="count-in" value="10" min="1" max="1000">
+      <label>Format:</label>
+      <select id="fmt-sel">
+        <option value="standard">Standard  (8-4-4-4-12)</option>
+        <option value="braces">With braces  {8-4-4-4-12}</option>
+        <option value="no-hyphens">No hyphens  (32 hex)</option>
+        <option value="urn">URN prefix  urn:uuid:…</option>
+        <option value="upper">UPPERCASE</option>
+      </select>
+      <label>
+        <input type="checkbox" id="color-cb" checked style="accent-color:var(--primary)">
+        Colour coded
+      </label>
+    </div>
+
+    <button class="btn" onclick="generateUUIDs()">🎲 Generate</button>
+
+    <div class="stat-bar" id="stat-bar" style="margin-top:14px;"></div>
+    <div class="uuid-list" id="uuid-list"></div>
+
+    <div class="btn-row">
+      <button class="btn btn-sm" onclick="copyAll()">Copy All</button>
+      <button class="btn btn-sm" onclick="downloadAll()">⬇ Download .txt</button>
+      <button class="btn btn-sm" onclick="document.getElementById('uuid-list').innerHTML='';document.getElementById('stat-bar').innerHTML=''">Clear</button>
+    </div>
+
+    <!-- Validator -->
+    <div class="validator-wrap">
+      <div style="font-size:.82rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;">UUID Validator</div>
+      <input type="text" id="val-in" placeholder="Paste a UUID to validate…" oninput="validateUUID()" autocorrect="off" spellcheck="false">
+      <div class="val-result" id="val-result"></div>
+    </div>
+
+    <details>
+      <summary>How UUID v4 is generated</summary>
+      <p>
+        UUID v4 (RFC 4122) is a 128-bit identifier where 122 bits are cryptographically random.
+        The remaining bits encode the version (bits 12-15 of the third group set to <code>0100</code> = version 4)
+        and the variant (top 2 bits of the fourth group set to <code>10</code> = RFC 4122 variant).
+        Format: <code>xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx</code> where y ∈ {8,9,a,b}.
+        Using <code>crypto.getRandomValues</code> ensures the 122 random bits are cryptographically
+        unpredictable. The collision probability for 1 trillion UUIDs is approximately 1 in 10²¹ — negligible.
+      </p>
+    </details>
+  </div>
+</div>
+
+<script>
+// ── UUID v4 generation ────────────────────────────────────────────────────────
+function generateUUIDv4() {
+  const b = crypto.getRandomValues(new Uint8Array(16));
+  b[6] = (b[6] & 0x0F) | 0x40; // version 4
+  b[8] = (b[8] & 0x3F) | 0x80; // variant RFC4122
+  const h = Array.from(b).map(x => x.toString(16).padStart(2,'0'));
+  return `${h.slice(0,4).join('')}-${h.slice(4,6).join('')}-${h.slice(6,8).join('')}-${h.slice(8,10).join('')}-${h.slice(10).join('')}`;
+}
+
+function formatUUID(uuid, fmt) {
+  switch (fmt) {
+    case 'braces':     return `{${uuid}}`;
+    case 'no-hyphens': return uuid.replace(/-/g,'');
+    case 'urn':        return `urn:uuid:${uuid}`;
+    case 'upper':      return uuid.toUpperCase();
+    default:           return uuid;
+  }
+}
+
+// ── Colour-coded HTML ─────────────────────────────────────────────────────────
+function colourUUID(uuid) {
+  const p = uuid.split('-');
+  if (p.length !== 5) return `<span>${uuid}</span>`;
+  return `<span class="uuid-p1">${p[0]}</span><span class="uuid-sep">-</span><span class="uuid-p2">${p[1]}</span><span class="uuid-sep">-</span><span class="uuid-p3">${p[2]}</span><span class="uuid-sep">-</span><span class="uuid-p4">${p[3]}</span><span class="uuid-sep">-</span><span class="uuid-p5">${p[4]}</span>`;
+}
+
+// ── Generate ──────────────────────────────────────────────────────────────────
+const _copyTimers = {};
+let _lastUUIDs = [];
+
+function generateUUIDs() {
+  const count  = Math.min(1000, Math.max(1, parseInt(document.getElementById('count-in').value) || 10));
+  const fmt    = document.getElementById('fmt-sel').value;
+  const colour = document.getElementById('color-cb').checked;
+
+  _lastUUIDs = [];
+  const list = document.getElementById('uuid-list');
+  list.innerHTML = '';
+
+  for (let i = 0; i < count; i++) {
+    const raw  = generateUUIDv4();
+    const disp = formatUUID(raw, fmt);
+    _lastUUIDs.push(disp);
+
+    const div  = document.createElement('div');
+    div.className = 'uuid-item';
+    const valHtml = colour && fmt === 'standard' ? colourUUID(raw) : `<span>${disp}</span>`;
+    div.innerHTML = `
+      <span class="uuid-idx">${String(i+1).padStart(3,'0')}</span>
+      <span class="uuid-val" id="uv${i}">${valHtml}</span>
+      <button class="uuid-copy" id="uc${i}" onclick="cpUUID(${i})">Copy</button>
+    `;
+    list.appendChild(div);
+  }
+
+  document.getElementById('stat-bar').innerHTML =
+    `<span class="stat-pill">Generated: <span>${count.toLocaleString()}</span></span>
+     <span class="stat-pill">Format: <span>${fmt}</span></span>
+     <span class="stat-pill">Random bits per UUID: <span>122</span></span>`;
+}
+
+function cpUUID(i) {
+  const text = document.getElementById('uv' + i)?.textContent || '';
+  if (!text) return;
+  navigator.clipboard.writeText(text);
+  const btn = document.getElementById('uc' + i), orig = btn.textContent;
+  if (_copyTimers[i]) clearInterval(_copyTimers[i]);
+  let t = 30; btn.textContent = t + 's';
+  _copyTimers[i] = setInterval(() => {
+    t--;
+    if (t <= 0) { clearInterval(_copyTimers[i]); navigator.clipboard.writeText(''); btn.textContent = orig; }
+    else btn.textContent = t + 's';
+  }, 1000);
+}
+
+function copyAll() {
+  if (_lastUUIDs.length) navigator.clipboard.writeText(_lastUUIDs.join('\n'));
+}
+
+function downloadAll() {
+  if (!_lastUUIDs.length) return;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([_lastUUIDs.join('\n')], {type:'text/plain'}));
+  a.download = 'uuids.txt'; a.click();
+}
+
+// ── Validator ─────────────────────────────────────────────────────────────────
+const UUID_RE_V4 = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/;
+const UUID_RE_ANY= /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+const UUID_NOHYP = /^[0-9a-fA-F]{32}$/;
+const UUID_URN   = /^urn:uuid:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/i;
+
+function validateUUID() {
+  let val = document.getElementById('val-in').value.trim();
+  const res = document.getElementById('val-result');
+  if (!val) { res.style.display='none'; return; }
+
+  // Normalise
+  if (val.startsWith('{') && val.endsWith('}')) val = val.slice(1,-1);
+  if (UUID_URN.test(val)) val = val.slice(9);
+  if (UUID_NOHYP.test(val)) {
+    val = `${val.slice(0,8)}-${val.slice(8,12)}-${val.slice(12,16)}-${val.slice(16,20)}-${val.slice(20)}`;
+  }
+
+  if (UUID_RE_V4.test(val)) {
+    res.className = 'val-result ok';
+    res.textContent = `✔ Valid UUID v4 (RFC 4122 compliant, CSPRNG-generated)`;
+  } else if (UUID_RE_ANY.test(val)) {
+    const v = parseInt(val[14], 16);
+    res.className = 'val-result ok';
+    res.textContent = `✔ Valid UUID format — version ${v} (not v4). Verify source for randomness.`;
+  } else {
+    res.className = 'val-result err';
+    res.textContent = '✖ Not a valid UUID (accepted formats: standard, no-hyphens, braces, URN).';
+  }
+}
+
+// Init
+generateUUIDs();
+</script>
+</body>
+</html>

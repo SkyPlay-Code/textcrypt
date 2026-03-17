@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aegis · 4a — Multi-Hash Tool</title>
+<style>
+  :root {
+    --bg:#0f1115; --panel:#1a1d24; --border:#2a2e39;
+    --primary:#3b82f6; --primary-hover:#2563eb;
+    --text:#e2e8f0; --text-muted:#94a3b8;
+    --error:#ef4444; --success:#22c55e; --warning:#f59e0b;
+    --mono:'Fira Code','Courier New',monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',system-ui,sans-serif;}
+  body{background:var(--bg);color:var(--text);padding:30px;min-height:100vh;}
+  h2{font-size:1.4rem;margin-bottom:6px;}
+  .subtitle{color:var(--text-muted);font-size:.85rem;margin-bottom:24px;}
+
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:24px;max-width:760px;margin:0 auto 28px;}
+  .card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px;}
+  .card-header h3{font-size:1.1rem;margin:0;}
+
+  .badge{padding:3px 10px;border-radius:20px;font-size:.7rem;font-weight:700;text-transform:uppercase;}
+  .badge.secure{background:rgba(34,197,94,.15);color:var(--success);}
+  .badge.legacy{background:rgba(245,158,11,.15);color:var(--warning);}
+  .badge.broken{background:rgba(239,68,68,.15);color:var(--error);}
+
+  /* Input mode tabs */
+  .mode-strip{display:flex;background:#15181e;border-radius:6px;border:1px solid var(--border);overflow:hidden;margin-bottom:20px;}
+  .mode-btn{flex:1;padding:10px;text-align:center;cursor:pointer;color:var(--text-muted);font-size:.85rem;font-weight:600;text-transform:uppercase;transition:.2s;border:none;background:none;}
+  .mode-btn.active{background:var(--panel);color:var(--primary);border-bottom:2px solid var(--primary);}
+  .panel{display:none;} .panel.active{display:block;}
+
+  .fg{margin-bottom:18px;position:relative;}
+  label{display:block;margin-bottom:7px;font-size:.85rem;color:var(--text-muted);font-weight:500;}
+  textarea{width:100%;padding:11px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:.9rem;resize:vertical;min-height:120px;}
+  textarea:focus{outline:none;border-color:var(--primary);}
+
+  /* Drop zone */
+  .drop-zone{border:2px dashed var(--border);border-radius:8px;padding:32px 20px;text-align:center;cursor:pointer;transition:.2s;background:rgba(255,255,255,.01);}
+  .drop-zone:hover,.drop-zone.over{border-color:var(--primary);background:rgba(59,130,246,.06);}
+  .drop-zone p{color:var(--text-muted);font-size:.9rem;pointer-events:none;}
+  .drop-zone input{display:none;}
+  .file-info{margin-top:10px;font-size:.82rem;color:var(--primary);font-family:var(--mono);word-break:break-all;}
+
+  .btn{display:inline-flex;align-items:center;gap:8px;padding:10px 18px;background:var(--primary);color:#fff;border:none;border-radius:6px;font-size:.9rem;font-weight:600;cursor:pointer;transition:background .2s;}
+  .btn:hover{background:var(--primary-hover);}
+  .btn:disabled{background:var(--border);color:var(--text-muted);cursor:not-allowed;}
+  .btn-sm{background:transparent;border:1px solid var(--border);color:var(--text);padding:6px 12px;font-size:.8rem;}
+  .btn-sm:hover{background:var(--border);}
+
+  .spinner{width:15px;height:15px;border:2px solid rgba(255,255,255,.3);border-radius:50%;border-top-color:#fff;animation:spin .7s linear infinite;display:none;}
+  .btn.loading .spinner{display:inline-block;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  .status{margin-top:12px;padding:10px 14px;border-radius:6px;font-size:.85rem;display:none;}
+  .status.ok{background:rgba(34,197,94,.1);color:var(--success);border:1px solid rgba(34,197,94,.25);display:block;}
+  .status.err{background:rgba(239,68,68,.1);color:var(--error);border:1px solid rgba(239,68,68,.25);display:block;}
+
+  /* Hash result rows */
+  .hash-grid{display:flex;flex-direction:column;gap:12px;margin-top:20px;}
+  .hash-row{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:14px 16px;}
+  .hash-row-header{display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap;}
+  .hash-name{font-weight:700;font-size:.88rem;}
+  .hash-meta{font-size:.75rem;color:var(--text-muted);}
+  .hash-val{font-family:var(--mono);font-size:.78rem;word-break:break-all;color:var(--text);line-height:1.6;padding:8px 10px;background:rgba(255,255,255,.03);border-radius:4px;border:1px solid var(--border);}
+  .hash-val.empty{color:var(--text-muted);font-style:italic;}
+  .hash-row-footer{display:flex;align-items:center;justify-content:space-between;margin-top:8px;flex-wrap:wrap;gap:6px;}
+  .hash-bits{font-size:.75rem;color:var(--text-muted);}
+
+  /* Progress bar for file hashing */
+  .progress-wrap{margin-top:14px;display:none;}
+  .progress-bar-bg{background:var(--border);border-radius:4px;height:6px;overflow:hidden;}
+  .progress-bar-fill{background:var(--primary);height:100%;width:0%;transition:width .1s linear;border-radius:4px;}
+  .progress-label{font-size:.78rem;color:var(--text-muted);margin-top:6px;text-align:center;}
+
+  /* Encoding selector */
+  .enc-row{display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;}
+  .enc-row label{margin:0;font-size:.83rem;}
+  .enc-row select{width:auto;padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:.83rem;cursor:pointer;}
+  .enc-row select:focus{outline:none;border-color:var(--primary);}
+
+  details{margin-top:22px;padding:14px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:6px;font-size:.83rem;color:var(--text-muted);}
+  details summary{cursor:pointer;font-weight:600;color:var(--text);}
+  details p{margin-top:10px;line-height:1.6;}
+  code{background:rgba(255,255,255,.07);padding:1px 5px;border-radius:3px;font-family:var(--mono);}
+</style>
+</head>
+<body>
+<div style="max-width:760px;margin:0 auto;">
+  <h2>4a — Multi-Hash Tool</h2>
+  <p class="subtitle">SHA-256 · SHA-384 · SHA-512 · SHA-1 · MD5 · all computed side-by-side · text or file input</p>
+
+  <div class="card">
+    <div class="card-header">
+      <h3>Hash Input</h3>
+      <span class="badge secure">WebCrypto + JS</span>
+    </div>
+
+    <div class="mode-strip">
+      <button class="mode-btn active" id="tab-text" onclick="setMode('text')">📝 Text Input</button>
+      <button class="mode-btn"        id="tab-file" onclick="setMode('file')">📁 File Input</button>
+    </div>
+
+    <!-- TEXT MODE -->
+    <div id="panel-text" class="panel active">
+      <div class="fg">
+        <label>Text to hash</label>
+        <textarea id="text-input" placeholder="Type or paste text here — hashes update automatically…" oninput="onTextInput()"></textarea>
+      </div>
+      <p style="font-size:.8rem;color:var(--text-muted);">Hashes update live as you type.</p>
+    </div>
+
+    <!-- FILE MODE -->
+    <div id="panel-file" class="panel">
+      <div class="fg">
+        <label>File to hash</label>
+        <div class="drop-zone" id="file-drop"
+             ondragover="onDragOver(event,'file-drop')"
+             ondragleave="onDragLeave('file-drop')"
+             ondrop="onFileDrop(event)">
+          <p>Drag &amp; drop any file here, or click to browse</p>
+          <input type="file" id="file-input" onchange="onFileSelect(this)" onclick="event.stopPropagation()">
+          <div class="file-info" id="file-info"></div>
+        </div>
+      </div>
+      <div class="progress-wrap" id="progress-wrap">
+        <div class="progress-bar-bg"><div class="progress-bar-fill" id="progress-fill"></div></div>
+        <div class="progress-label" id="progress-label">Hashing…</div>
+      </div>
+      <button class="btn" id="file-hash-btn" onclick="hashFile()" style="margin-top:12px;">
+        <span class="spinner"></span> Hash File
+      </button>
+    </div>
+
+    <div id="hash-status" class="status"></div>
+
+    <!-- Output encoding toggle -->
+    <div class="enc-row" style="margin-top:20px;">
+      <label>Output encoding:</label>
+      <select id="enc-select" onchange="reformatOutputs()">
+        <option value="hex">Hexadecimal (lowercase)</option>
+        <option value="HEX">Hexadecimal (UPPERCASE)</option>
+        <option value="b64">Base64</option>
+      </select>
+    </div>
+
+    <!-- Hash results -->
+    <div class="hash-grid" id="hash-grid">
+      <!-- SHA-256 -->
+      <div class="hash-row" id="row-sha256">
+        <div class="hash-row-header">
+          <span class="hash-name">SHA-256</span>
+          <span class="badge secure">Secure</span>
+          <span class="hash-meta">256 bits · NIST standard</span>
+        </div>
+        <div class="hash-val empty" id="val-sha256">—</div>
+        <div class="hash-row-footer">
+          <span class="hash-bits" id="bits-sha256">256 bits · 64 hex chars · 44 base64 chars</span>
+          <button class="btn btn-sm" id="copy-sha256" onclick="copyHash('val-sha256','copy-sha256')">Copy</button>
+        </div>
+      </div>
+
+      <!-- SHA-384 -->
+      <div class="hash-row" id="row-sha384">
+        <div class="hash-row-header">
+          <span class="hash-name">SHA-384</span>
+          <span class="badge secure">Secure</span>
+          <span class="hash-meta">384 bits · NIST standard</span>
+        </div>
+        <div class="hash-val empty" id="val-sha384">—</div>
+        <div class="hash-row-footer">
+          <span class="hash-bits">384 bits · 96 hex chars · 64 base64 chars</span>
+          <button class="btn btn-sm" id="copy-sha384" onclick="copyHash('val-sha384','copy-sha384')">Copy</button>
+        </div>
+      </div>
+
+      <!-- SHA-512 -->
+      <div class="hash-row" id="row-sha512">
+        <div class="hash-row-header">
+          <span class="hash-name">SHA-512</span>
+          <span class="badge secure">Secure</span>
+          <span class="hash-meta">512 bits · strongest SHA-2</span>
+        </div>
+        <div class="hash-val empty" id="val-sha512">—</div>
+        <div class="hash-row-footer">
+          <span class="hash-bits">512 bits · 128 hex chars · 88 base64 chars</span>
+          <button class="btn btn-sm" id="copy-sha512" onclick="copyHash('val-sha512','copy-sha512')">Copy</button>
+        </div>
+      </div>
+
+      <!-- SHA-1 -->
+      <div class="hash-row" id="row-sha1">
+        <div class="hash-row-header">
+          <span class="hash-name">SHA-1</span>
+          <span class="badge legacy">Legacy</span>
+          <span class="hash-meta">160 bits · collision attacks known — do not use for security</span>
+        </div>
+        <div class="hash-val empty" id="val-sha1">—</div>
+        <div class="hash-row-footer">
+          <span class="hash-bits">160 bits · 40 hex chars · 28 base64 chars</span>
+          <button class="btn btn-sm" id="copy-sha1" onclick="copyHash('val-sha1','copy-sha1')">Copy</button>
+        </div>
+      </div>
+
+      <!-- MD5 (JS polyfill — WebCrypto does not support it) -->
+      <div class="hash-row" id="row-md5">
+        <div class="hash-row-header">
+          <span class="hash-name">MD5</span>
+          <span class="badge broken">Broken</span>
+          <span class="hash-meta">128 bits · collision attacks trivial · for legacy checksums only</span>
+        </div>
+        <div class="hash-val empty" id="val-md5">—</div>
+        <div class="hash-row-footer">
+          <span class="hash-bits">128 bits · 32 hex chars · 24 base64 chars · JS polyfill</span>
+          <button class="btn btn-sm" id="copy-md5" onclick="copyHash('val-md5','copy-md5')">Copy</button>
+        </div>
+      </div>
+    </div>
+
+    <details>
+      <summary>About these algorithms</summary>
+      <p>
+        <strong>SHA-256 / SHA-384 / SHA-512</strong> are part of the SHA-2 family standardised by NIST.
+        They are considered cryptographically secure and suitable for digital signatures, certificates, and integrity checking.
+        <strong>SHA-1</strong> (160-bit) has known collision vulnerabilities — SHAttered (2017) demonstrated a practical
+        SHA-1 collision — avoid for security-critical use, though it still appears in Git commit hashes and legacy systems.
+        <strong>MD5</strong> (128-bit) is completely broken for security purposes; collisions can be found in seconds.
+        It survives only as a fast non-cryptographic checksum (e.g. verifying accidental file corruption, not adversarial tampering).
+        MD5 is computed with a pure-JS polyfill since the Web Crypto API intentionally omits it.
+      </p>
+    </details>
+  </div>
+</div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────────
+// Stores raw Uint8Array buffers for each algorithm so we can reformat on-the-fly
+const _rawHashes = { sha256: null, sha384: null, sha512: null, sha1: null, md5: null };
+let _debounceTimer = null;
+
+// ── UI helpers ────────────────────────────────────────────────────────────────
+function setMode(m) {
+  document.getElementById('panel-text').classList.toggle('active', m === 'text');
+  document.getElementById('panel-file').classList.toggle('active', m === 'file');
+  document.getElementById('tab-text').classList.toggle('active',   m === 'text');
+  document.getElementById('tab-file').classList.toggle('active',   m === 'file');
+  clearResults();
+}
+function showStatus(msg, isErr) {
+  const el = document.getElementById('hash-status');
+  el.textContent = msg;
+  el.className = 'status ' + (isErr ? 'err' : 'ok');
+  setTimeout(() => { el.style.display = 'none'; }, 6000);
+}
+function setLoading(id, on) {
+  const b = document.getElementById(id);
+  b.disabled = on;
+  on ? b.classList.add('loading') : b.classList.remove('loading');
+}
+function clearResults() {
+  Object.keys(_rawHashes).forEach(k => _rawHashes[k] = null);
+  ['sha256','sha384','sha512','sha1','md5'].forEach(id => {
+    const el = document.getElementById('val-' + id);
+    el.textContent = '—';
+    el.classList.add('empty');
+  });
+}
+
+// Copy with 30s clipboard countdown
+const _ct = {};
+function copyHash(valId, btnId) {
+  const text = document.getElementById(valId).textContent.trim();
+  if (!text || text === '—') return;
+  navigator.clipboard.writeText(text);
+  const btn = document.getElementById(btnId), orig = btn.textContent;
+  if (_ct[btnId]) clearInterval(_ct[btnId]);
+  let t = 30;
+  btn.textContent = `${t}s`;
+  _ct[btnId] = setInterval(() => {
+    t--;
+    if (t <= 0) { clearInterval(_ct[btnId]); navigator.clipboard.writeText(''); btn.textContent = orig; }
+    else btn.textContent = `${t}s`;
+  }, 1000);
+}
+
+// File drop helpers
+function onDragOver(e, id) { e.preventDefault(); document.getElementById(id).classList.add('over'); }
+function onDragLeave(id)   { document.getElementById(id).classList.remove('over'); }
+function onFileDrop(e) {
+  e.preventDefault();
+  onDragLeave('file-drop');
+  const f = e.dataTransfer.files[0];
+  if (!f) return;
+  try {
+    const dt = new DataTransfer(); dt.items.add(f);
+    document.getElementById('file-input').files = dt.files;
+  } catch(_) {}
+  showFileInfoStr(f);
+}
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('file-drop').addEventListener('click', () =>
+    document.getElementById('file-input').click());
+});
+function onFileSelect(input) {
+  if (input.files[0]) showFileInfoStr(input.files[0]);
+  clearResults();
+}
+function showFileInfoStr(f) {
+  const mb = (f.size / 1048576).toFixed(2);
+  document.getElementById('file-info').textContent = `${f.name}  (${mb} MB)`;
+}
+
+// ── Output encoding ───────────────────────────────────────────────────────────
+function encodeHash(bytes) {
+  const enc = document.getElementById('enc-select').value;
+  if (!bytes) return '—';
+  if (enc === 'b64') return btoa(String.fromCharCode(...bytes));
+  const hex = Array.from(bytes).map(b => b.toString(16).padStart(2,'0')).join('');
+  return enc === 'HEX' ? hex.toUpperCase() : hex;
+}
+
+function renderHash(id, bytes) {
+  const el = document.getElementById('val-' + id);
+  if (!bytes) { el.textContent = '—'; el.classList.add('empty'); return; }
+  el.textContent = encodeHash(bytes);
+  el.classList.remove('empty');
+}
+
+function reformatOutputs() {
+  ['sha256','sha384','sha512','sha1','md5'].forEach(id => renderHash(id, _rawHashes[id]));
+}
+
+// ── Hash computation ──────────────────────────────────────────────────────────
+
+// WebCrypto for SHA family
+async function webcryptoHash(algo, data) {
+  const buf = await crypto.subtle.digest(algo, data);
+  return new Uint8Array(buf);
+}
+
+// ── MD5 pure-JS (RFC 1321) ────────────────────────────────────────────────────
+function md5(input) {
+  // input: Uint8Array → returns Uint8Array[16]
+  function safeAdd(x, y) { const lsw=(x&0xFFFF)+(y&0xFFFF); return (((x>>16)+(y>>16)+(lsw>>16))<<16)|(lsw&0xFFFF); }
+  function rol(n,c) { return (n<<c)|(n>>>(32-c)); }
+  function cmn(q,a,b,x,s,t) { return safeAdd(rol(safeAdd(safeAdd(a,q),safeAdd(x,t)),s),b); }
+  function ff(a,b,c,d,x,s,t) { return cmn((b&c)|((~b)&d),a,b,x,s,t); }
+  function gg(a,b,c,d,x,s,t) { return cmn((b&d)|(c&(~d)),a,b,x,s,t); }
+  function hh(a,b,c,d,x,s,t) { return cmn(b^c^d,a,b,x,s,t); }
+  function ii(a,b,c,d,x,s,t) { return cmn(c^(b|(~d)),a,b,x,s,t); }
+
+  // Pad input
+  const len8 = input.length;
+  const len64 = len8 / 4;
+  const extra = ((len64 + 2) >>> 4) + 1;
+  const padded = new Int32Array(extra * 16);
+  for (let i = 0; i < len64; i++) {
+    padded[i>>2] |= (input[i*4]|(input[i*4+1]<<8)|(input[i*4+2]<<16)|(input[i*4+3]<<24));
+  }
+  // Handle non-4-byte-aligned input length
+  for (let i = 0; i < len8; i++) {
+    padded[i>>2] |= input[i] << ((i%4)*8);
+  }
+  padded[len8>>2] |= 0x80 << ((len8 % 4) * 8);
+  padded[extra*16-2] = len8 * 8;
+
+  let a= 1732584193, b=-271733879, c=-1732584194, d= 271733878;
+
+  for (let i = 0; i < padded.length; i += 16) {
+    const [oa,ob,oc,od]=[a,b,c,d];
+    const w = padded.slice(i,i+16);
+    a=ff(a,b,c,d,w[0], 7,-680876936);  d=ff(d,a,b,c,w[1],12,-389564586);
+    c=ff(c,d,a,b,w[2],17, 606105819);  b=ff(b,c,d,a,w[3],22,-1044525330);
+    a=ff(a,b,c,d,w[4], 7,-176418897);  d=ff(d,a,b,c,w[5],12, 1200080426);
+    c=ff(c,d,a,b,w[6],17,-1473231341); b=ff(b,c,d,a,w[7],22,-45705983);
+    a=ff(a,b,c,d,w[8], 7, 1770035416); d=ff(d,a,b,c,w[9],12,-1958414417);
+    c=ff(c,d,a,b,w[10],17,-42063);     b=ff(b,c,d,a,w[11],22,-1990404162);
+    a=ff(a,b,c,d,w[12], 7, 1804603682);d=ff(d,a,b,c,w[13],12,-40341101);
+    c=ff(c,d,a,b,w[14],17,-1502002290);b=ff(b,c,d,a,w[15],22,1236535329);
+    a=gg(a,b,c,d,w[1], 5,-165796510);  d=gg(d,a,b,c,w[6], 9,-1069501632);
+    c=gg(c,d,a,b,w[11],14, 643717713); b=gg(b,c,d,a,w[0],20,-373897302);
+    a=gg(a,b,c,d,w[5], 5,-701558691);  d=gg(d,a,b,c,w[10], 9, 38016083);
+    c=gg(c,d,a,b,w[15],14,-660478335); b=gg(b,c,d,a,w[4],20,-405537848);
+    a=gg(a,b,c,d,w[9], 5, 568446438);  d=gg(d,a,b,c,w[14], 9,-1019803690);
+    c=gg(c,d,a,b,w[3],14,-187363961);  b=gg(b,c,d,a,w[8],20,1163531501);
+    a=gg(a,b,c,d,w[13], 5,-1444681467);d=gg(d,a,b,c,w[2], 9,-51403784);
+    c=gg(c,d,a,b,w[7],14,1735328473);  b=gg(b,c,d,a,w[12],20,-1926607734);
+    a=hh(a,b,c,d,w[5], 4,-378558);     d=hh(d,a,b,c,w[8],11,-2022574463);
+    c=hh(c,d,a,b,w[11],16, 1839030562);b=hh(b,c,d,a,w[14],23,-35309556);
+    a=hh(a,b,c,d,w[1], 4,-1530992060);d=hh(d,a,b,c,w[4],11, 1272893353);
+    c=hh(c,d,a,b,w[7],16,-155497632);  b=hh(b,c,d,a,w[10],23,-1094730640);
+    a=hh(a,b,c,d,w[13], 4, 681279174); d=hh(d,a,b,c,w[0],11,-358537222);
+    c=hh(c,d,a,b,w[3],16,-722521979);  b=hh(b,c,d,a,w[6],23, 76029189);
+    a=hh(a,b,c,d,w[9], 4,-640364487);  d=hh(d,a,b,c,w[12],11,-421815835);
+    c=hh(c,d,a,b,w[15],16, 530742520); b=hh(b,c,d,a,w[2],23,-995338651);
+    a=ii(a,b,c,d,w[0], 6,-198630844);  d=ii(d,a,b,c,w[7],10,1126891415);
+    c=ii(c,d,a,b,w[14],15,-1416354905);b=ii(b,c,d,a,w[5],21,-57434055);
+    a=ii(a,b,c,d,w[12], 6, 1700485571);d=ii(d,a,b,c,w[3],10,-1894986606);
+    c=ii(c,d,a,b,w[10],15,-1051523);   b=ii(b,c,d,a,w[1],21,-2054922799);
+    a=ii(a,b,c,d,w[8], 6, 1873313359); d=ii(d,a,b,c,w[15],10,-30611744);
+    c=ii(c,d,a,b,w[6],15,-1560198380); b=ii(b,c,d,a,w[13],21,1309151649);
+    a=ii(a,b,c,d,w[4], 6,-145523070);  d=ii(d,a,b,c,w[11],10,-1120210379);
+    c=ii(c,d,a,b,w[2],15, 718787259);  b=ii(b,c,d,a,w[9],21,-343485551);
+    a=safeAdd(a,oa); b=safeAdd(b,ob); c=safeAdd(c,oc); d=safeAdd(d,od);
+  }
+
+  // Pack result as little-endian bytes
+  const out = new Uint8Array(16);
+  [a,b,c,d].forEach((v,i) => {
+    out[i*4]   =  v        & 0xFF;
+    out[i*4+1] = (v >>  8) & 0xFF;
+    out[i*4+2] = (v >> 16) & 0xFF;
+    out[i*4+3] = (v >>> 24)& 0xFF;
+  });
+  return out;
+}
+
+// ── Text: live hashing ────────────────────────────────────────────────────────
+function onTextInput() {
+  clearTimeout(_debounceTimer);
+  _debounceTimer = setTimeout(hashText, 120);
+}
+
+async function hashText() {
+  const text = document.getElementById('text-input').value;
+  if (!text) { clearResults(); return; }
+  const bytes = new TextEncoder().encode(text);
+
+  try {
+    const [s256, s384, s512, s1] = await Promise.all([
+      webcryptoHash('SHA-256', bytes),
+      webcryptoHash('SHA-384', bytes),
+      webcryptoHash('SHA-512', bytes),
+      webcryptoHash('SHA-1',   bytes),
+    ]);
+    const m5 = md5(bytes);
+
+    _rawHashes.sha256 = s256;
+    _rawHashes.sha384 = s384;
+    _rawHashes.sha512 = s512;
+    _rawHashes.sha1   = s1;
+    _rawHashes.md5    = m5;
+
+    reformatOutputs();
+  } catch (e) {
+    showStatus('Hashing error: ' + e.message, true);
+  }
+}
+
+// ── File: chunk-based hashing with progress ───────────────────────────────────
+async function hashFile() {
+  const file = document.getElementById('file-input').files[0];
+  if (!file) return showStatus('Please select a file first.', true);
+
+  setLoading('file-hash-btn', true);
+  clearResults();
+
+  const progressWrap = document.getElementById('progress-wrap');
+  const progressFill = document.getElementById('progress-fill');
+  const progressLabel= document.getElementById('progress-label');
+  progressWrap.style.display = 'block';
+  progressFill.style.width   = '0%';
+  progressLabel.textContent  = 'Reading file…';
+
+  try {
+    // Read entire file — for very large files WebCrypto still needs the full buffer
+    const buf   = await file.arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    progressFill.style.width  = '40%';
+    progressLabel.textContent = 'Computing hashes…';
+
+    const [s256, s384, s512, s1] = await Promise.all([
+      webcryptoHash('SHA-256', bytes),
+      webcryptoHash('SHA-384', bytes),
+      webcryptoHash('SHA-512', bytes),
+      webcryptoHash('SHA-1',   bytes),
+    ]);
+    progressFill.style.width  = '90%';
+    const m5 = md5(bytes);
+    progressFill.style.width  = '100%';
+
+    _rawHashes.sha256 = s256;
+    _rawHashes.sha384 = s384;
+    _rawHashes.sha512 = s512;
+    _rawHashes.sha1   = s1;
+    _rawHashes.md5    = m5;
+
+    reformatOutputs();
+    progressLabel.textContent = '✔ Done';
+    showStatus(`✔ File hashed: ${file.name} (${(file.size/1048576).toFixed(2)} MB)`, false);
+  } catch (e) {
+    showStatus('Hashing failed: ' + e.message, true);
+    progressWrap.style.display = 'none';
+  } finally {
+    setLoading('file-hash-btn', false);
+    setTimeout(() => { progressWrap.style.display = 'none'; }, 2000);
+  }
+}
+</script>
+</body>
+</html>

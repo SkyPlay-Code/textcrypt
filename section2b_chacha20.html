@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aegis · 2b — ChaCha20-Poly1305</title>
+<style>
+  :root {
+    --bg:#0f1115; --panel:#1a1d24; --border:#2a2e39;
+    --primary:#3b82f6; --primary-hover:#2563eb;
+    --text:#e2e8f0; --text-muted:#94a3b8;
+    --error:#ef4444; --success:#22c55e;
+    --mono:'Fira Code','Courier New',monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',system-ui,sans-serif;}
+  body{background:var(--bg);color:var(--text);padding:30px;min-height:100vh;}
+  h2{font-size:1.4rem;margin-bottom:6px;}
+  .subtitle{color:var(--text-muted);font-size:.85rem;margin-bottom:24px;}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:24px;max-width:700px;margin:0 auto;}
+  .card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;}
+  .card-header h3{font-size:1.1rem;margin:0;}
+  .badge{padding:3px 10px;border-radius:20px;font-size:.7rem;font-weight:700;text-transform:uppercase;background:rgba(34,197,94,.15);color:var(--success);}
+  .mode-strip{display:flex;background:#15181e;border-radius:6px;border:1px solid var(--border);overflow:hidden;margin-bottom:22px;}
+  .mode-btn{flex:1;padding:10px;text-align:center;cursor:pointer;color:var(--text-muted);font-size:.85rem;font-weight:600;text-transform:uppercase;transition:.2s;border:none;background:none;}
+  .mode-btn.active{background:var(--panel);color:var(--primary);border-bottom:2px solid var(--primary);}
+  .panel{display:none;} .panel.active{display:block;}
+  .fg{margin-bottom:18px;position:relative;}
+  label{display:block;margin-bottom:7px;font-size:.85rem;color:var(--text-muted);font-weight:500;}
+  textarea,input[type=password]{width:100%;padding:11px 38px 11px 11px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:.9rem;transition:border-color .2s;resize:vertical;}
+  textarea{min-height:100px;padding-right:11px;}
+  textarea:focus,input:focus{outline:none;border-color:var(--primary);}
+  .eye{position:absolute;right:10px;top:33px;background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1rem;line-height:1;}
+  .out-box{font-family:var(--mono);font-size:.82rem;background:var(--bg);border:1px solid var(--border);padding:12px;border-radius:6px;word-break:break-all;min-height:56px;white-space:pre-wrap;}
+  .btn{display:inline-flex;align-items:center;gap:8px;padding:10px 18px;background:var(--primary);color:#fff;border:none;border-radius:6px;font-size:.9rem;font-weight:600;cursor:pointer;transition:background .2s;}
+  .btn:hover{background:var(--primary-hover);}
+  .btn:disabled{background:var(--border);color:var(--text-muted);cursor:not-allowed;}
+  .btn-sm{background:transparent;border:1px solid var(--border);color:var(--text);padding:7px 14px;font-size:.82rem;margin-top:8px;}
+  .btn-sm:hover{background:var(--border);}
+  .spinner{width:15px;height:15px;border:2px solid rgba(255,255,255,.3);border-radius:50%;border-top-color:#fff;animation:spin .7s linear infinite;display:none;}
+  .btn.loading .spinner{display:inline-block;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .status{margin-top:12px;padding:10px 14px;border-radius:6px;font-size:.85rem;display:none;}
+  .status.ok{background:rgba(34,197,94,.1);color:var(--success);border:1px solid rgba(34,197,94,.25);display:block;}
+  .status.err{background:rgba(239,68,68,.1);color:var(--error);border:1px solid rgba(239,68,68,.25);display:block;}
+  details{margin-top:22px;padding:14px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:6px;font-size:.83rem;color:var(--text-muted);}
+  details summary{cursor:pointer;font-weight:600;color:var(--text);}
+  details p{margin-top:10px;line-height:1.6;}
+  code{background:rgba(255,255,255,.07);padding:1px 5px;border-radius:3px;font-family:var(--mono);}
+</style>
+</head>
+<body>
+
+<div style="max-width:700px;margin:0 auto;">
+  <h2>2b — ChaCha20-Poly1305 AEAD</h2>
+  <p class="subtitle">Pure-JS polyfill · RFC 8439 compliant · PBKDF2 key derivation</p>
+
+  <div class="card">
+    <div class="card-header">
+      <h3>ChaCha20-Poly1305</h3>
+      <span class="badge">✔ RFC 8439</span>
+    </div>
+
+    <div class="mode-strip">
+      <button class="mode-btn active" id="tab-enc" onclick="setMode('enc')">🔒 Encrypt</button>
+      <button class="mode-btn"        id="tab-dec" onclick="setMode('dec')">🔓 Decrypt</button>
+    </div>
+
+    <!-- ENCRYPT -->
+    <div id="panel-enc" class="panel active">
+      <div class="fg">
+        <label>Plaintext</label>
+        <textarea id="enc-text" rows="4" placeholder="Enter text to encrypt…"></textarea>
+      </div>
+      <div class="fg">
+        <label>Password</label>
+        <input type="password" id="enc-pass" placeholder="Passphrase — key derived via PBKDF2">
+        <button class="eye" onclick="toggleEye('enc-pass',this)">👁</button>
+      </div>
+      <button class="btn" id="enc-btn" onclick="doEncrypt()">
+        <span class="spinner"></span> Encrypt
+      </button>
+      <div id="enc-status" class="status"></div>
+      <div class="fg" style="margin-top:16px;">
+        <label>Ciphertext — Base64</label>
+        <div class="out-box" id="enc-out"></div>
+        <button class="btn btn-sm" id="enc-copy" onclick="copyOut('enc-out','enc-copy')">Copy to clipboard</button>
+      </div>
+    </div>
+
+    <!-- DECRYPT -->
+    <div id="panel-dec" class="panel">
+      <div class="fg">
+        <label>Ciphertext — Base64</label>
+        <textarea id="dec-text" rows="4" placeholder="Paste Base64 ciphertext…"></textarea>
+      </div>
+      <div class="fg">
+        <label>Password</label>
+        <input type="password" id="dec-pass" placeholder="Passphrase used during encryption">
+        <button class="eye" onclick="toggleEye('dec-pass',this)">👁</button>
+      </div>
+      <button class="btn" id="dec-btn" onclick="doDecrypt()">
+        <span class="spinner"></span> Decrypt
+      </button>
+      <div id="dec-status" class="status"></div>
+      <div class="fg" style="margin-top:16px;">
+        <label>Decrypted Plaintext</label>
+        <div class="out-box" id="dec-out"></div>
+        <button class="btn btn-sm" id="dec-copy" onclick="copyOut('dec-out','dec-copy')">Copy to clipboard</button>
+      </div>
+    </div>
+
+    <details>
+      <summary>How it works</summary>
+      <p>
+        ChaCha20-Poly1305 is an <strong>AEAD</strong> (Authenticated Encryption with Associated Data) cipher.
+        WebCrypto does not expose it natively in browsers, so this uses a pure-JS RFC 8439 implementation.
+        Your password is run through <strong>PBKDF2</strong> (SHA-256, 250,000 iterations) to produce a 256-bit key.
+        ChaCha20 generates a keystream from that key + a random 96-bit nonce; XORing with the plaintext produces ciphertext.
+        <strong>Poly1305</strong> then computes a 128-bit authentication tag over the ciphertext.
+        On decryption the tag is verified <em>first</em> (before any plaintext is returned) — this is the key
+        security property of AEAD. Output format: <code>[salt 16B][nonce 12B][tag 16B][ciphertext]</code> → Base64.
+      </p>
+    </details>
+  </div>
+</div>
+
+<script>
+// ── UI ───────────────────────────────────────────────────────────────────────
+
+function setMode(m) {
+  document.getElementById('panel-enc').classList.toggle('active', m === 'enc');
+  document.getElementById('panel-dec').classList.toggle('active', m === 'dec');
+  document.getElementById('tab-enc').classList.toggle('active',   m === 'enc');
+  document.getElementById('tab-dec').classList.toggle('active',   m === 'dec');
+}
+function toggleEye(id, btn) {
+  const el = document.getElementById(id);
+  el.type = el.type === 'password' ? 'text' : 'password';
+  btn.textContent = el.type === 'password' ? '👁' : '🙈';
+}
+function showStatus(id, msg, isErr) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.className = 'status ' + (isErr ? 'err' : 'ok');
+  setTimeout(() => { el.style.display = 'none'; }, 7000);
+}
+const _timers = {};
+async function copyOut(outId, btnId) {
+  const text = document.getElementById(outId).textContent.trim();
+  if (!text) return;
+  await navigator.clipboard.writeText(text);
+  const btn = document.getElementById(btnId), orig = btn.textContent;
+  if (_timers[btnId]) clearInterval(_timers[btnId]);
+  let t = 30;
+  btn.textContent = `Clearing in ${t}s…`;
+  _timers[btnId] = setInterval(() => {
+    t--;
+    if (t <= 0) { clearInterval(_timers[btnId]); navigator.clipboard.writeText(''); btn.textContent = orig; }
+    else btn.textContent = `Clearing in ${t}s…`;
+  }, 1000);
+}
+function setLoading(id, on) {
+  const b = document.getElementById(id);
+  b.disabled = on;
+  on ? b.classList.add('loading') : b.classList.remove('loading');
+}
+
+// ── Crypto: PBKDF2 key derivation (extractable — needed for ChaCha20 polyfill) ──
+
+async function deriveRawKey(password, salt) {
+  const mat = await crypto.subtle.importKey(
+    'raw', new TextEncoder().encode(password),
+    { name: 'PBKDF2' }, false, ['deriveKey']
+  );
+  const key = await crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt, iterations: 250000, hash: 'SHA-256' },
+    mat, { name: 'AES-GCM', length: 256 },
+    true,   // must be extractable so we can get raw bytes for ChaCha20
+    ['encrypt', 'decrypt']
+  );
+  return new Uint8Array(await crypto.subtle.exportKey('raw', key));
+}
+
+function toB64(buf) {
+  return btoa(Array.from(new Uint8Array(buf), b => String.fromCharCode(b)).join(''));
+}
+function fromB64(s) {
+  return Uint8Array.from(atob(s.trim()), c => c.charCodeAt(0));
+}
+
+// ── ChaCha20 core (RFC 8439 §2.1) ───────────────────────────────────────────
+
+function rotl32(v, n) { return ((v << n) | (v >>> (32 - n))) >>> 0; }
+
+function chacha20Block(key32, nonce32, counter) {
+  // Initial state constants: "expa nd 32-byte k"
+  const S = new Uint32Array([
+    0x61707865, 0x3320646e, 0x79622d32, 0x6b206574,
+    key32[0],  key32[1],  key32[2],  key32[3],
+    key32[4],  key32[5],  key32[6],  key32[7],
+    counter,   nonce32[0],nonce32[1],nonce32[2]
+  ]);
+  const W = new Uint32Array(S);
+
+  for (let i = 0; i < 10; i++) {
+    // Column rounds
+    W[0]=(W[0]+W[4])>>>0; W[12]^=W[0]; W[12]=rotl32(W[12],16);
+    W[8]=(W[8]+W[12])>>>0;W[4]^=W[8];  W[4] =rotl32(W[4], 12);
+    W[0]=(W[0]+W[4])>>>0; W[12]^=W[0]; W[12]=rotl32(W[12], 8);
+    W[8]=(W[8]+W[12])>>>0;W[4]^=W[8];  W[4] =rotl32(W[4],  7);
+
+    W[1]=(W[1]+W[5])>>>0; W[13]^=W[1]; W[13]=rotl32(W[13],16);
+    W[9]=(W[9]+W[13])>>>0;W[5]^=W[9];  W[5] =rotl32(W[5], 12);
+    W[1]=(W[1]+W[5])>>>0; W[13]^=W[1]; W[13]=rotl32(W[13], 8);
+    W[9]=(W[9]+W[13])>>>0;W[5]^=W[9];  W[5] =rotl32(W[5],  7);
+
+    W[2]=(W[2]+W[6])>>>0; W[14]^=W[2]; W[14]=rotl32(W[14],16);
+    W[10]=(W[10]+W[14])>>>0;W[6]^=W[10];W[6]=rotl32(W[6], 12);
+    W[2]=(W[2]+W[6])>>>0; W[14]^=W[2]; W[14]=rotl32(W[14], 8);
+    W[10]=(W[10]+W[14])>>>0;W[6]^=W[10];W[6]=rotl32(W[6],  7);
+
+    W[3]=(W[3]+W[7])>>>0; W[15]^=W[3]; W[15]=rotl32(W[15],16);
+    W[11]=(W[11]+W[15])>>>0;W[7]^=W[11];W[7]=rotl32(W[7], 12);
+    W[3]=(W[3]+W[7])>>>0; W[15]^=W[3]; W[15]=rotl32(W[15], 8);
+    W[11]=(W[11]+W[15])>>>0;W[7]^=W[11];W[7]=rotl32(W[7],  7);
+
+    // Diagonal rounds
+    W[0]=(W[0]+W[5])>>>0; W[15]^=W[0]; W[15]=rotl32(W[15],16);
+    W[10]=(W[10]+W[15])>>>0;W[5]^=W[10];W[5]=rotl32(W[5], 12);
+    W[0]=(W[0]+W[5])>>>0; W[15]^=W[0]; W[15]=rotl32(W[15], 8);
+    W[10]=(W[10]+W[15])>>>0;W[5]^=W[10];W[5]=rotl32(W[5],  7);
+
+    W[1]=(W[1]+W[6])>>>0; W[12]^=W[1]; W[12]=rotl32(W[12],16);
+    W[11]=(W[11]+W[12])>>>0;W[6]^=W[11];W[6]=rotl32(W[6], 12);
+    W[1]=(W[1]+W[6])>>>0; W[12]^=W[1]; W[12]=rotl32(W[12], 8);
+    W[11]=(W[11]+W[12])>>>0;W[6]^=W[11];W[6]=rotl32(W[6],  7);
+
+    W[2]=(W[2]+W[7])>>>0; W[13]^=W[2]; W[13]=rotl32(W[13],16);
+    W[8]=(W[8]+W[13])>>>0; W[7]^=W[8];  W[7]=rotl32(W[7], 12);
+    W[2]=(W[2]+W[7])>>>0; W[13]^=W[2]; W[13]=rotl32(W[13], 8);
+    W[8]=(W[8]+W[13])>>>0; W[7]^=W[8];  W[7]=rotl32(W[7],  7);
+
+    W[3]=(W[3]+W[4])>>>0; W[14]^=W[3]; W[14]=rotl32(W[14],16);
+    W[9]=(W[9]+W[14])>>>0; W[4]^=W[9];  W[4]=rotl32(W[4], 12);
+    W[3]=(W[3]+W[4])>>>0; W[14]^=W[3]; W[14]=rotl32(W[14], 8);
+    W[9]=(W[9]+W[14])>>>0; W[4]^=W[9];  W[4]=rotl32(W[4],  7);
+  }
+
+  // Add working state back to initial state
+  for (let i = 0; i < 16; i++) W[i] = (W[i] + S[i]) >>> 0;
+  return new Uint8Array(W.buffer);
+}
+
+/** XOR plaintext/ciphertext with ChaCha20 keystream. Same function for enc & dec. */
+function chacha20Xor(keyBytes, nonceBytes, input, startCounter = 1) {
+  const key32   = new Uint32Array(keyBytes.buffer,   keyBytes.byteOffset,   8);
+  // nonce is 12 bytes → 3 × u32 little-endian
+  const n32 = new Uint32Array(3);
+  const nv  = new DataView(nonceBytes.buffer, nonceBytes.byteOffset, 12);
+  n32[0] = nv.getUint32(0, true);
+  n32[1] = nv.getUint32(4, true);
+  n32[2] = nv.getUint32(8, true);
+
+  const out = new Uint8Array(input.length);
+  for (let i = 0; i < input.length; i += 64) {
+    const block = chacha20Block(key32, n32, startCounter + Math.floor(i / 64));
+    for (let j = 0; j < 64 && i + j < input.length; j++) {
+      out[i + j] = input[i + j] ^ block[j];
+    }
+  }
+  return out;
+}
+
+// ── Poly1305 (RFC 8439 §2.5) ─────────────────────────────────────────────────
+
+function poly1305(oneTimeKey, msg) {
+  // oneTimeKey: Uint8Array[32]
+  // Read r (16 bytes, little-endian) and clamp
+  let r = 0n;
+  for (let i = 0; i < 16; i++) r |= BigInt(oneTimeKey[i]) << BigInt(i * 8);
+  r &= 0x0ffffffc0ffffffc0ffffffc0fffffffn;
+
+  let s = 0n;
+  for (let i = 0; i < 16; i++) s |= BigInt(oneTimeKey[16 + i]) << BigInt(i * 8);
+
+  const P = (1n << 130n) - 5n;
+  let a = 0n;
+
+  for (let i = 0; i < msg.length; i += 16) {
+    const chunk = msg.slice(i, i + 16);
+    let n = 0n;
+    for (let j = 0; j < chunk.length; j++) n |= BigInt(chunk[j]) << BigInt(j * 8);
+    n |= 1n << BigInt(chunk.length * 8); // append 1 bit after last byte
+    a = ((a + n) * r) % P;
+  }
+
+  const out = new Uint8Array(16);
+  let t = a + s;
+  for (let i = 0; i < 16; i++) { out[i] = Number(t & 255n); t >>= 8n; }
+  return out;
+}
+
+/** Generate the 32-byte Poly1305 one-time key (block counter 0) */
+function poly1305KeyGen(keyBytes, nonceBytes) {
+  const key32 = new Uint32Array(keyBytes.buffer, keyBytes.byteOffset, 8);
+  const n32   = new Uint32Array(3);
+  const nv    = new DataView(nonceBytes.buffer, nonceBytes.byteOffset, 12);
+  n32[0] = nv.getUint32(0, true);
+  n32[1] = nv.getUint32(4, true);
+  n32[2] = nv.getUint32(8, true);
+  return chacha20Block(key32, n32, 0).slice(0, 32);
+}
+
+// ── ChaCha20-Poly1305 AEAD ───────────────────────────────────────────────────
+
+function aead_encrypt(keyBytes, nonceBytes, plaintext) {
+  const otk        = poly1305KeyGen(keyBytes, nonceBytes);
+  const ciphertext = chacha20Xor(keyBytes, nonceBytes, plaintext, 1);
+
+  // Build Poly1305 input: pad(ciphertext) + [aad_len u64-le] + [ct_len u64-le]
+  // (no AAD in this implementation)
+  const ctPad  = (16 - (ciphertext.length % 16)) % 16;
+  const macIn  = new Uint8Array(ciphertext.length + ctPad + 16);
+  macIn.set(ciphertext, 0);
+  // zeros for padding (already 0)
+  // lengths: aad_len=0, ct_len as 8-byte LE
+  const ctLen = BigInt(ciphertext.length);
+  for (let i = 0; i < 8; i++) macIn[ciphertext.length + ctPad + 8 + i] = Number((ctLen >> BigInt(i * 8)) & 255n);
+
+  const tag = poly1305(otk, macIn);
+  return { ciphertext, tag };
+}
+
+function aead_decrypt(keyBytes, nonceBytes, ciphertext, expectedTag) {
+  // Recompute tag over ciphertext FIRST
+  const otk   = poly1305KeyGen(keyBytes, nonceBytes);
+  const ctPad = (16 - (ciphertext.length % 16)) % 16;
+  const macIn = new Uint8Array(ciphertext.length + ctPad + 16);
+  macIn.set(ciphertext, 0);
+  const ctLen = BigInt(ciphertext.length);
+  for (let i = 0; i < 8; i++) macIn[ciphertext.length + ctPad + 8 + i] = Number((ctLen >> BigInt(i * 8)) & 255n);
+  const computedTag = poly1305(otk, macIn);
+
+  // Constant-time tag comparison
+  let diff = 0;
+  for (let i = 0; i < 16; i++) diff |= expectedTag[i] ^ computedTag[i];
+  if (diff !== 0) throw new Error('Authentication failed — wrong password or data was tampered with.');
+
+  // Only decrypt after tag is verified
+  return chacha20Xor(keyBytes, nonceBytes, ciphertext, 1);
+}
+
+// ── Encrypt / Decrypt handlers ───────────────────────────────────────────────
+
+async function doEncrypt() {
+  const text = document.getElementById('enc-text').value;
+  const pass = document.getElementById('enc-pass').value;
+  if (!text) return showStatus('enc-status', 'Please enter some text to encrypt.', true);
+  if (!pass) return showStatus('enc-status', 'Please enter a password.', true);
+
+  setLoading('enc-btn', true);
+  document.getElementById('enc-out').textContent = '';
+
+  // defer to next tick so spinner renders before the heavy JS runs
+  setTimeout(async () => {
+    try {
+      const salt  = crypto.getRandomValues(new Uint8Array(16));
+      const nonce = crypto.getRandomValues(new Uint8Array(12));
+      const key   = await deriveRawKey(pass, salt);
+
+      const plaintext = new TextEncoder().encode(text);
+      const { ciphertext, tag } = aead_encrypt(key, nonce, plaintext);
+
+      // Pack: [salt 16B][nonce 12B][tag 16B][ciphertext]
+      const out = new Uint8Array(16 + 12 + 16 + ciphertext.length);
+      out.set(salt, 0); out.set(nonce, 16); out.set(tag, 28); out.set(ciphertext, 44);
+
+      document.getElementById('enc-out').textContent = toB64(out.buffer);
+      showStatus('enc-status', '✔ Encrypted successfully (ChaCha20-Poly1305, RFC 8439).', false);
+    } catch (e) {
+      showStatus('enc-status', 'Encryption error: ' + e.message, true);
+    } finally {
+      setLoading('enc-btn', false);
+    }
+  }, 30);
+}
+
+async function doDecrypt() {
+  const b64  = document.getElementById('dec-text').value.trim();
+  const pass = document.getElementById('dec-pass').value;
+  if (!b64)  return showStatus('dec-status', 'Please paste a Base64 ciphertext.', true);
+  if (!pass) return showStatus('dec-status', 'Please enter the password.', true);
+
+  setLoading('dec-btn', true);
+  document.getElementById('dec-out').textContent = '';
+
+  setTimeout(async () => {
+    try {
+      const payload = fromB64(b64);
+      if (payload.length < 45) throw new Error('Payload too short — is this a valid ChaCha20-Poly1305 ciphertext?');
+
+      const salt        = payload.slice(0,  16);
+      const nonce       = payload.slice(16, 28);
+      const expectedTag = payload.slice(28, 44);
+      const ciphertext  = payload.slice(44);
+
+      const key = await deriveRawKey(pass, salt);
+      // aead_decrypt verifies the Poly1305 tag before returning plaintext
+      const plaintext = aead_decrypt(key, nonce, ciphertext, expectedTag);
+
+      document.getElementById('dec-out').textContent = new TextDecoder().decode(plaintext);
+      showStatus('dec-status', '✔ Decrypted & authenticated successfully.', false);
+    } catch (e) {
+      showStatus('dec-status', e.message, true);
+    } finally {
+      setLoading('dec-btn', false);
+    }
+  }, 30);
+}
+</script>
+</body>
+</html>

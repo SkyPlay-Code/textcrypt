@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aegis · 8a — Entropy Visualizer</title>
+<style>
+  :root {
+    --bg:#0f1115; --panel:#1a1d24; --border:#2a2e39;
+    --primary:#3b82f6; --primary-hover:#2563eb;
+    --text:#e2e8f0; --text-muted:#94a3b8;
+    --error:#ef4444; --success:#22c55e; --warning:#f59e0b;
+    --mono:'Fira Code','Courier New',monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',system-ui,sans-serif;}
+  body{background:var(--bg);color:var(--text);padding:30px;min-height:100vh;}
+  h2{font-size:1.4rem;margin-bottom:6px;}
+  .subtitle{color:var(--text-muted);font-size:.85rem;margin-bottom:24px;}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:24px;max-width:820px;margin:0 auto 28px;}
+  .card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px;}
+  .card-header h3{font-size:1.1rem;margin:0;}
+  .badge{padding:3px 10px;border-radius:20px;font-size:.7rem;font-weight:700;text-transform:uppercase;background:rgba(34,197,94,.15);color:var(--success);}
+  .mode-strip{display:flex;background:#15181e;border-radius:6px;border:1px solid var(--border);overflow:hidden;margin-bottom:20px;}
+  .mode-btn{flex:1;padding:10px;text-align:center;cursor:pointer;color:var(--text-muted);font-size:.85rem;font-weight:600;text-transform:uppercase;transition:.2s;border:none;background:none;}
+  .mode-btn.active{background:var(--panel);color:var(--primary);border-bottom:2px solid var(--primary);}
+  .panel{display:none;} .panel.active{display:block;}
+  .fg{margin-bottom:18px;}
+  label{display:block;margin-bottom:7px;font-size:.85rem;color:var(--text-muted);font-weight:500;}
+  textarea{width:100%;padding:11px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:.9rem;resize:vertical;min-height:120px;}
+  textarea:focus{outline:none;border-color:var(--primary);}
+  .drop-zone{border:2px dashed var(--border);border-radius:8px;padding:32px 20px;text-align:center;cursor:pointer;transition:.2s;background:rgba(255,255,255,.01);}
+  .drop-zone:hover,.drop-zone.over{border-color:var(--primary);background:rgba(59,130,246,.06);}
+  .drop-zone p{color:var(--text-muted);font-size:.9rem;pointer-events:none;}
+  .drop-zone input{display:none;}
+  .file-badge{display:inline-flex;align-items:center;gap:8px;margin-top:10px;padding:7px 14px;background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.3);border-radius:6px;font-size:.8rem;color:var(--primary);font-family:var(--mono);}
+  .btn{display:inline-flex;align-items:center;gap:7px;padding:10px 18px;background:var(--primary);color:#fff;border:none;border-radius:6px;font-size:.9rem;font-weight:600;cursor:pointer;transition:background .2s;}
+  .btn:hover{background:var(--primary-hover);}
+  .btn:disabled{background:var(--border);color:var(--text-muted);cursor:not-allowed;}
+  .spinner{width:15px;height:15px;border:2px solid rgba(255,255,255,.3);border-radius:50%;border-top-color:#fff;animation:spin .7s linear infinite;display:none;}
+  .btn.loading .spinner{display:inline-block;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .status{margin-top:12px;padding:10px 14px;border-radius:6px;font-size:.85rem;display:none;}
+  .status.ok{background:rgba(34,197,94,.1);color:var(--success);border:1px solid rgba(34,197,94,.25);display:block;}
+  .status.err{background:rgba(239,68,68,.1);color:var(--error);border:1px solid rgba(239,68,68,.25);display:block;}
+  /* Results */
+  .results{display:none;margin-top:20px;}
+  /* Entropy meter */
+  .entropy-hero{text-align:center;padding:20px;background:var(--bg);border:1px solid var(--border);border-radius:10px;margin-bottom:16px;}
+  .ent-score{font-size:3.5rem;font-weight:700;font-family:var(--mono);line-height:1;}
+  .ent-unit{font-size:1rem;color:var(--text-muted);margin-top:4px;}
+  .ent-verdict{margin-top:12px;padding:8px 20px;border-radius:20px;display:inline-block;font-size:.88rem;font-weight:700;}
+  /* Stats grid */
+  .stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;}
+  @media(max-width:520px){.stats-grid{grid-template-columns:1fr 1fr;}}
+  .stat{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:11px 13px;}
+  .stat-lbl{font-size:.7rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;}
+  .stat-num{font-size:1.05rem;font-weight:700;font-family:var(--mono);}
+  .stat-sub{font-size:.72rem;color:var(--text-muted);margin-top:2px;}
+  /* Histogram */
+  .histogram-wrap{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:16px;}
+  .histogram-title{font-size:.78rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;}
+  canvas{display:block;width:100%;border-radius:4px;}
+  /* Interpretation box */
+  .interp{padding:14px 16px;border-radius:8px;font-size:.85rem;line-height:1.6;}
+  .interp-title{font-weight:700;margin-bottom:6px;font-size:.9rem;}
+  details{margin-top:22px;padding:14px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:6px;font-size:.83rem;color:var(--text-muted);}
+  details summary{cursor:pointer;font-weight:600;color:var(--text);}
+  details p{margin-top:10px;line-height:1.6;}
+  code{background:rgba(255,255,255,.07);padding:1px 5px;border-radius:3px;font-family:var(--mono);}
+</style>
+</head>
+<body>
+<div style="max-width:820px;margin:0 auto;">
+  <h2>8a — Entropy Visualizer</h2>
+  <p class="subtitle">Shannon entropy · byte frequency histogram · plaintext / compressed / encrypted classification</p>
+
+  <div class="card">
+    <div class="card-header">
+      <h3>Entropy Analysis</h3>
+      <span class="badge">Shannon H</span>
+    </div>
+
+    <div class="mode-strip">
+      <button class="mode-btn active" id="tab-text" onclick="setMode('text')">📝 Text Input</button>
+      <button class="mode-btn"        id="tab-file" onclick="setMode('file')">📁 File Input</button>
+    </div>
+
+    <div id="panel-text" class="panel active">
+      <div class="fg">
+        <label>Text to analyze — entropy updates live as you type</label>
+        <textarea id="text-in" placeholder="Paste or type any text…" oninput="analyzeText()"></textarea>
+      </div>
+    </div>
+
+    <div id="panel-file" class="panel">
+      <div class="fg">
+        <label>File to analyze</label>
+        <div class="drop-zone" id="file-drop"
+             ondragover="onDragOver(event,'file-drop')" ondragleave="onDragLeave('file-drop')"
+             ondrop="onFileDrop(event)">
+          <p>Drag &amp; drop any file — text, image, binary, archive…</p>
+          <input type="file" id="file-in" onchange="onFileSelect(this)" onclick="event.stopPropagation()">
+          <div id="file-badge"></div>
+        </div>
+      </div>
+      <button class="btn" id="file-btn" onclick="analyzeFile()">
+        <span class="spinner"></span> Analyze File
+      </button>
+      <div id="file-status" class="status"></div>
+    </div>
+
+    <!-- Results -->
+    <div class="results" id="results">
+      <!-- Entropy hero -->
+      <div class="entropy-hero">
+        <div class="ent-score" id="ent-score">—</div>
+        <div class="ent-unit">bits per byte (max 8.0)</div>
+        <div class="ent-verdict" id="ent-verdict"></div>
+      </div>
+
+      <!-- Stats -->
+      <div class="stats-grid">
+        <div class="stat"><div class="stat-lbl">Total Bytes</div><div class="stat-num" id="st-total">—</div></div>
+        <div class="stat"><div class="stat-lbl">Unique Byte Values</div><div class="stat-num" id="st-unique">—</div><div class="stat-sub">out of 256 possible</div></div>
+        <div class="stat"><div class="stat-lbl">Most Common Byte</div><div class="stat-num" id="st-mode">—</div><div class="stat-sub" id="st-mode-sub"></div></div>
+        <div class="stat"><div class="stat-lbl">Least Common Byte</div><div class="stat-num" id="st-rare">—</div><div class="stat-sub" id="st-rare-sub"></div></div>
+        <div class="stat"><div class="stat-lbl">Zero Bytes</div><div class="stat-num" id="st-zeros">—</div><div class="stat-sub">0x00 count</div></div>
+        <div class="stat"><div class="stat-lbl">Printable ASCII</div><div class="stat-num" id="st-ascii">—</div><div class="stat-sub">% of bytes</div></div>
+      </div>
+
+      <!-- Histogram -->
+      <div class="histogram-wrap">
+        <div class="histogram-title">Byte Value Distribution (0x00 → 0xFF)</div>
+        <canvas id="hist-canvas" height="140"></canvas>
+      </div>
+
+      <!-- Interpretation -->
+      <div class="interp" id="interp-box"></div>
+    </div>
+
+    <details>
+      <summary>How Shannon entropy works</summary>
+      <p>
+        Shannon entropy <code>H = -Σ p(x) × log₂(p(x))</code> measures the average unpredictability
+        of each byte, in bits. Maximum entropy (8.0 bits/byte) means every byte value is equally likely —
+        indistinguishable from random, as produced by encryption or compression.
+        <strong>Plaintext</strong> (English text) scores ~3.5–5.5 bits/byte because letters like 'e','t','a'
+        appear far more often than others — the distribution is uneven.
+        <strong>Compressed data</strong> (zip, gzip, jpg) scores 7.5–8.0 because compression removes
+        redundancy, making the output appear more random.
+        <strong>Encrypted data</strong> also scores 7.5–8.0, but unlike compressed data it has no
+        internal structure or file headers — though distinguishing the two from byte frequency alone
+        is not always possible.
+      </p>
+    </details>
+  </div>
+</div>
+
+<script>
+// ── UI helpers ─────────────────────────────────────────────────────────────────
+function setMode(m) {
+  document.getElementById('panel-text').classList.toggle('active', m === 'text');
+  document.getElementById('panel-file').classList.toggle('active', m === 'file');
+  document.getElementById('tab-text').classList.toggle('active',   m === 'text');
+  document.getElementById('tab-file').classList.toggle('active',   m === 'file');
+  document.getElementById('results').style.display = 'none';
+}
+function onDragOver(e, id) { e.preventDefault(); document.getElementById(id).classList.add('over'); }
+function onDragLeave(id)   { document.getElementById(id).classList.remove('over'); }
+function onFileDrop(e) {
+  e.preventDefault(); onDragLeave('file-drop');
+  const f = e.dataTransfer.files[0]; if (!f) return;
+  try { const dt = new DataTransfer(); dt.items.add(f); document.getElementById('file-in').files = dt.files; } catch(_) {}
+  showBadge(f);
+}
+function onFileSelect(input) { if (input.files[0]) showBadge(input.files[0]); }
+function showBadge(f) {
+  const mb = (f.size/1048576).toFixed(2);
+  document.getElementById('file-badge').innerHTML =
+    `<div class="file-badge">📄 ${f.name} · ${mb} MB</div>`;
+}
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('file-drop').addEventListener('click', () =>
+    document.getElementById('file-in').click());
+});
+function setLoading(id, on) {
+  const b = document.getElementById(id); b.disabled = on;
+  on ? b.classList.add('loading') : b.classList.remove('loading');
+}
+function showStatus(id, msg, isErr) {
+  const el = document.getElementById(id);
+  el.textContent = msg; el.className = 'status ' + (isErr ? 'err' : 'ok');
+  setTimeout(() => { el.style.display = 'none'; }, 6000);
+}
+
+// ── Entropy computation ────────────────────────────────────────────────────────
+function computeEntropy(bytes) {
+  const freq = new Uint32Array(256);
+  for (let i = 0; i < bytes.length; i++) freq[bytes[i]]++;
+  const n = bytes.length;
+  let H = 0;
+  for (let i = 0; i < 256; i++) {
+    if (freq[i] === 0) continue;
+    const p = freq[i] / n;
+    H -= p * Math.log2(p);
+  }
+  return { entropy: H, freq };
+}
+
+function getVerdict(H, pctAscii) {
+  if (H < 3.5) return {
+    label: '📄 Plaintext / Natural Language',
+    color: '#22c55e', bg: 'rgba(34,197,94,.1)', border: 'rgba(34,197,94,.25)',
+    desc: `Entropy of ${H.toFixed(2)} bits/byte is typical of human-readable text. The byte distribution is highly skewed — a small set of characters (letters, spaces, common punctuation) dominate. This data has low information density and is NOT encrypted or compressed.`
+  };
+  if (H < 5.5) return {
+    label: '📝 Structured / Source Code / Markup',
+    color: '#84cc16', bg: 'rgba(132,204,18,.1)', border: 'rgba(132,204,18,.25)',
+    desc: `Entropy of ${H.toFixed(2)} bits/byte suggests structured text like source code, XML, JSON, or HTML. The distribution is non-uniform but more spread than prose — character variety is higher but patterns still exist.`
+  };
+  if (H < 7.0) return {
+    label: '🔀 Mixed / Partially Structured Binary',
+    color: '#f59e0b', bg: 'rgba(245,158,11,.1)', border: 'rgba(245,158,11,.25)',
+    desc: `Entropy of ${H.toFixed(2)} bits/byte falls in a middle zone. This is common in binary formats with headers (EXE, PDF, PNG) where some structured metadata mixes with encoded payloads. Moderate randomness.`
+  };
+  if (H < 7.5) return {
+    label: '📦 Compressed Data (likely)',
+    color: '#f97316', bg: 'rgba(249,115,22,.1)', border: 'rgba(249,115,22,.25)',
+    desc: `Entropy of ${H.toFixed(2)} bits/byte is consistent with compressed data (ZIP, GZIP, PNG deflate). Compression removes redundancy, pushing the distribution toward uniformity without fully reaching maximum entropy.`
+  };
+  return {
+    label: '🔐 Encrypted / Compressed (indistinguishable from random)',
+    color: '#ef4444', bg: 'rgba(239,68,68,.1)', border: 'rgba(239,68,68,.25)',
+    desc: `Entropy of ${H.toFixed(2)} bits/byte is near-maximum — the byte distribution is nearly uniform, which is the hallmark of either strong encryption (AES, ChaCha20) or well-compressed data. Cannot distinguish encryption from compression by entropy alone without additional context.`
+  };
+}
+
+// ── Canvas histogram ───────────────────────────────────────────────────────────
+function drawHistogram(freq, verdictColor) {
+  const canvas  = document.getElementById('hist-canvas');
+  const dpr     = window.devicePixelRatio || 1;
+  const W       = canvas.parentElement.clientWidth - 28;
+  const H       = 140;
+  canvas.width  = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width  = W + 'px';
+  canvas.style.height = H + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  const maxFreq = Math.max(...freq);
+  const barW    = W / 256;
+  const PAD_B   = 20; // bottom padding for axis labels
+
+  ctx.clearRect(0, 0, W, H);
+
+  // Grid lines
+  ctx.strokeStyle = 'rgba(255,255,255,.05)';
+  ctx.lineWidth   = 1;
+  for (let g = 1; g <= 4; g++) {
+    const y = PAD_B + ((H - PAD_B) * (1 - g/4));
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+  }
+
+  // Bars
+  for (let i = 0; i < 256; i++) {
+    const h   = maxFreq > 0 ? ((freq[i] / maxFreq) * (H - PAD_B - 4)) : 0;
+    const x   = i * barW;
+    const y   = H - PAD_B - h;
+
+    // Colour by byte range: 0x00=dark, printable ASCII=primary, high=warm
+    if (freq[i] === 0) continue;
+    const alpha = 0.4 + 0.6 * (freq[i] / maxFreq);
+    if (i === 0) ctx.fillStyle = `rgba(148,163,184,${alpha})`;          // null byte: muted
+    else if (i >= 32 && i <= 126) ctx.fillStyle = `rgba(59,130,246,${alpha})`; // printable ASCII: primary
+    else if (i < 32 || i === 127) ctx.fillStyle = `rgba(245,158,11,${alpha})`; // control chars: warning
+    else ctx.fillStyle = `rgba(239,68,68,${alpha})`;                    // high bytes: red
+
+    ctx.fillRect(x, y, Math.max(barW - 0.3, 0.7), h);
+  }
+
+  // X-axis labels
+  ctx.fillStyle = 'rgba(148,163,184,.7)';
+  ctx.font      = `${10 * dpr / dpr}px monospace`;
+  ctx.textAlign = 'center';
+  for (const tick of [0, 32, 64, 96, 128, 160, 192, 224, 255]) {
+    ctx.fillText('0x' + tick.toString(16).toUpperCase().padStart(2,'0'), tick * barW + barW/2, H - 4);
+  }
+
+  // Legend
+  const legend = [
+    { color: 'rgba(148,163,184,.8)', label: '0x00 (null)' },
+    { color: 'rgba(59,130,246,.8)',  label: 'Printable ASCII' },
+    { color: 'rgba(245,158,11,.8)',  label: 'Control chars' },
+    { color: 'rgba(239,68,68,.8)',   label: 'High bytes (>127)' },
+  ];
+  ctx.textAlign = 'left';
+  let lx = 4;
+  legend.forEach(l => {
+    ctx.fillStyle = l.color;
+    ctx.fillRect(lx, 3, 10, 8);
+    ctx.fillStyle = 'rgba(148,163,184,.8)';
+    ctx.fillText(l.label, lx + 13, 11);
+    lx += ctx.measureText(l.label).width + 28;
+  });
+}
+
+// ── Shared render ──────────────────────────────────────────────────────────────
+function renderResults(bytes) {
+  const { entropy, freq } = computeEntropy(bytes);
+  const n = bytes.length;
+
+  // Unique byte count
+  let unique = 0, modeIdx = 0, modeVal = 0, rareIdx = -1, rareVal = Infinity;
+  let zeros = freq[0], printable = 0;
+  for (let i = 0; i < 256; i++) {
+    if (freq[i] > 0) unique++;
+    if (freq[i] > modeVal) { modeVal = freq[i]; modeIdx = i; }
+    if (freq[i] > 0 && freq[i] < rareVal) { rareVal = freq[i]; rareIdx = i; }
+    if (i >= 32 && i <= 126) printable += freq[i];
+  }
+  const pctAscii = (printable / n * 100).toFixed(1);
+  const verdict  = getVerdict(entropy, parseFloat(pctAscii));
+
+  // Score
+  const scoreEl = document.getElementById('ent-score');
+  scoreEl.textContent = entropy.toFixed(4);
+  scoreEl.style.color = verdict.color;
+
+  // Verdict badge
+  const vEl = document.getElementById('ent-verdict');
+  vEl.textContent    = verdict.label;
+  vEl.style.background = verdict.bg;
+  vEl.style.border   = `1px solid ${verdict.border}`;
+  vEl.style.color    = verdict.color;
+
+  // Stats
+  document.getElementById('st-total').textContent  = n.toLocaleString();
+  document.getElementById('st-unique').textContent = unique;
+  document.getElementById('st-mode').textContent   = `0x${modeIdx.toString(16).toUpperCase().padStart(2,'0')}`;
+  document.getElementById('st-mode-sub').textContent = `${((modeVal/n)*100).toFixed(2)}% of bytes`;
+  document.getElementById('st-zeros').textContent  = zeros.toLocaleString();
+  document.getElementById('st-ascii').textContent  = pctAscii + '%';
+
+  if (rareIdx >= 0) {
+    document.getElementById('st-rare').textContent = `0x${rareIdx.toString(16).toUpperCase().padStart(2,'0')}`;
+    document.getElementById('st-rare-sub').textContent = `appears ${rareVal}×`;
+  }
+
+  // Histogram
+  drawHistogram(freq, verdict.color);
+
+  // Interpretation
+  const ib = document.getElementById('interp-box');
+  ib.style.background = verdict.bg;
+  ib.style.border     = `1px solid ${verdict.border}`;
+  ib.innerHTML = `<div class="interp-title" style="color:${verdict.color}">${verdict.label}</div>${verdict.desc}`;
+
+  document.getElementById('results').style.display = 'block';
+}
+
+// ── Text mode (live) ──────────────────────────────────────────────────────────
+let _debounce = null;
+function analyzeText() {
+  clearTimeout(_debounce);
+  _debounce = setTimeout(() => {
+    const text = document.getElementById('text-in').value;
+    if (!text) { document.getElementById('results').style.display = 'none'; return; }
+    renderResults(new TextEncoder().encode(text));
+  }, 100);
+}
+
+// ── File mode ─────────────────────────────────────────────────────────────────
+async function analyzeFile() {
+  const f = document.getElementById('file-in').files[0];
+  if (!f) return showStatus('file-status', 'Please select a file.', true);
+  setLoading('file-btn', true);
+  try {
+    const buf   = await f.arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    renderResults(bytes);
+    showStatus('file-status', `✔ Analyzed ${bytes.length.toLocaleString()} bytes from "${f.name}".`, false);
+  } catch (e) {
+    showStatus('file-status', 'Analysis failed: ' + e.message, true);
+  } finally {
+    setLoading('file-btn', false);
+  }
+}
+</script>
+</body>
+</html>

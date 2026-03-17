@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aegis · 3c — ECDSA Sign &amp; Verify</title>
+<style>
+  :root {
+    --bg:#0f1115; --panel:#1a1d24; --border:#2a2e39;
+    --primary:#3b82f6; --primary-hover:#2563eb;
+    --text:#e2e8f0; --text-muted:#94a3b8;
+    --error:#ef4444; --success:#22c55e; --warning:#f59e0b;
+    --mono:'Fira Code','Courier New',monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',system-ui,sans-serif;}
+  body{background:var(--bg);color:var(--text);padding:30px;min-height:100vh;}
+  h2{font-size:1.4rem;margin-bottom:6px;}
+  .subtitle{color:var(--text-muted);font-size:.85rem;margin-bottom:24px;}
+
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:24px;max-width:760px;margin:0 auto 28px;}
+  .card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px;}
+  .card-header h3{font-size:1.1rem;margin:0;}
+  .badge{padding:3px 10px;border-radius:20px;font-size:.7rem;font-weight:700;text-transform:uppercase;background:rgba(34,197,94,.15);color:var(--success);}
+
+  .mode-strip{display:flex;background:#15181e;border-radius:6px;border:1px solid var(--border);overflow:hidden;margin-bottom:22px;}
+  .mode-btn{flex:1;padding:10px;text-align:center;cursor:pointer;color:var(--text-muted);font-size:.85rem;font-weight:600;text-transform:uppercase;transition:.2s;border:none;background:none;}
+  .mode-btn.active{background:var(--panel);color:var(--primary);border-bottom:2px solid var(--primary);}
+  .panel{display:none;} .panel.active{display:block;}
+
+  .fg{margin-bottom:18px;position:relative;}
+  label{display:block;margin-bottom:7px;font-size:.85rem;color:var(--text-muted);font-weight:500;}
+  textarea,input[type=text],select{width:100%;padding:11px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:.9rem;transition:border-color .2s;resize:vertical;}
+  textarea:focus,input:focus,select:focus{outline:none;border-color:var(--primary);}
+  textarea.mono{font-family:var(--mono);font-size:.78rem;}
+  select{cursor:pointer;}
+
+  .out-box{font-family:var(--mono);font-size:.78rem;background:var(--bg);border:1px solid var(--border);padding:12px;border-radius:6px;word-break:break-all;min-height:40px;white-space:pre-wrap;overflow-x:auto;}
+
+  .btn{display:inline-flex;align-items:center;gap:8px;padding:10px 18px;background:var(--primary);color:#fff;border:none;border-radius:6px;font-size:.9rem;font-weight:600;cursor:pointer;transition:background .2s;}
+  .btn:hover{background:var(--primary-hover);}
+  .btn:disabled{background:var(--border);color:var(--text-muted);cursor:not-allowed;}
+  .btn-sm{background:transparent;border:1px solid var(--border);color:var(--text);padding:7px 14px;font-size:.82rem;}
+  .btn-sm:hover{background:var(--border);}
+  .btn-danger{background:transparent;border:1px solid var(--error);color:var(--error);}
+  .btn-danger:hover{background:rgba(239,68,68,.1);}
+  .btn-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
+
+  .spinner{width:15px;height:15px;border:2px solid rgba(255,255,255,.3);border-radius:50%;border-top-color:#fff;animation:spin .7s linear infinite;display:none;}
+  .btn.loading .spinner{display:inline-block;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  .status{margin-top:12px;padding:10px 14px;border-radius:6px;font-size:.85rem;display:none;}
+  .status.ok{background:rgba(34,197,94,.1);color:var(--success);border:1px solid rgba(34,197,94,.25);display:block;}
+  .status.err{background:rgba(239,68,68,.1);color:var(--error);border:1px solid rgba(239,68,68,.25);display:block;}
+
+  /* Key pair display */
+  .key-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:16px 0;}
+  @media(max-width:580px){.key-grid{grid-template-columns:1fr;}}
+  .key-box{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:14px;}
+  .key-box-title{font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;}
+  .key-box-title.pub{color:#34d399;}
+  .key-box-title.priv{color:#f87171;}
+  .key-pem{font-family:var(--mono);font-size:.7rem;word-break:break-all;white-space:pre-wrap;color:var(--text-muted);max-height:130px;overflow-y:auto;line-height:1.5;}
+
+  /* Verification result */
+  .verify-result{padding:16px 20px;border-radius:8px;margin-top:16px;display:none;text-align:center;}
+  .verify-result.valid{background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);display:block;}
+  .verify-result.invalid{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);display:block;}
+  .verify-icon{font-size:2.5rem;margin-bottom:8px;}
+  .verify-label{font-size:1rem;font-weight:700;}
+  .verify-label.valid{color:var(--success);}
+  .verify-label.invalid{color:var(--error);}
+  .verify-sub{font-size:.82rem;color:var(--text-muted);margin-top:4px;}
+
+  /* Signature breakdown */
+  .sig-breakdown{margin-top:12px;padding:12px;background:rgba(0,0,0,.2);border-radius:6px;border:1px solid var(--border);}
+  .sig-row{display:flex;gap:12px;margin-bottom:6px;font-size:.78rem;flex-wrap:wrap;}
+  .sig-row:last-child{margin-bottom:0;}
+  .sig-label{color:var(--text-muted);min-width:80px;font-weight:600;}
+  .sig-val{font-family:var(--mono);word-break:break-all;color:var(--primary);}
+
+  /* Curve selector */
+  .row-2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  @media(max-width:500px){.row-2{grid-template-columns:1fr;}}
+
+  details{margin-top:22px;padding:14px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:6px;font-size:.83rem;color:var(--text-muted);}
+  details summary{cursor:pointer;font-weight:600;color:var(--text);}
+  details p{margin-top:10px;line-height:1.6;}
+  code{background:rgba(255,255,255,.07);padding:1px 5px;border-radius:3px;font-family:var(--mono);}
+</style>
+</head>
+<body>
+<div style="max-width:760px;margin:0 auto;">
+  <h2>3c — ECDSA Sign &amp; Verify</h2>
+  <p class="subtitle">Elliptic Curve Digital Signature Algorithm · P-256 or P-384 · WebCrypto native</p>
+
+  <!-- ── STEP 1: Generate Key Pair ──────────────────────────────────── -->
+  <div class="card">
+    <div class="card-header">
+      <h3>Step 1 — Generate Signing Key Pair</h3>
+      <span class="badge">ECDSA</span>
+    </div>
+
+    <div class="row-2" style="margin-bottom:16px;">
+      <div class="fg" style="margin:0;">
+        <label>Curve</label>
+        <select id="curve-select">
+          <option value="P-256">P-256 (NIST · 128-bit security)</option>
+          <option value="P-384">P-384 (NIST · 192-bit security)</option>
+        </select>
+      </div>
+      <div class="fg" style="margin:0;">
+        <label>Hash Algorithm</label>
+        <select id="hash-select">
+          <option value="SHA-256">SHA-256</option>
+          <option value="SHA-384">SHA-384</option>
+        </select>
+      </div>
+    </div>
+
+    <button class="btn" id="gen-btn" onclick="generateSigningKeys()">
+      <span class="spinner"></span> Generate ECDSA Key Pair
+    </button>
+    <div id="gen-status" class="status"></div>
+
+    <div id="key-display" style="display:none;margin-top:4px;">
+      <div class="key-grid">
+        <div class="key-box">
+          <div class="key-box-title pub">🔓 Public Key (SPKI)</div>
+          <div class="key-pem" id="pub-pem"></div>
+        </div>
+        <div class="key-box">
+          <div class="key-box-title priv">🔑 Private Key (PKCS#8)</div>
+          <div class="key-pem" id="priv-pem"></div>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-sm" onclick="downloadPem('pub-pem','ecdsa_public.pem')">⬇ Public Key</button>
+        <button class="btn btn-sm" onclick="downloadPem('priv-pem','ecdsa_private.pem')">⬇ Private Key</button>
+        <button class="btn btn-sm" id="copy-pub-btn" onclick="copyText(document.getElementById('pub-pem').textContent,'copy-pub-btn')">Copy Public Key</button>
+        <button class="btn btn-sm btn-danger" onclick="clearKeys()">🗑 Clear</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── STEP 2: Sign & Verify ─────────────────────────────────────── -->
+  <div class="card">
+    <div class="card-header">
+      <h3>Step 2 — Sign &amp; Verify</h3>
+      <span class="badge">Non-repudiation</span>
+    </div>
+
+    <div class="mode-strip">
+      <button class="mode-btn active" id="tab-sign" onclick="setMode('sign')">✍️ Sign</button>
+      <button class="mode-btn"        id="tab-verify" onclick="setMode('verify')">✅ Verify</button>
+    </div>
+
+    <!-- SIGN PANEL -->
+    <div id="panel-sign" class="panel active">
+      <div class="fg">
+        <label>Private Key (PEM — PKCS#8)</label>
+        <textarea id="sign-privkey" class="mono" rows="5"
+          placeholder="-----BEGIN PRIVATE KEY-----&#10;Paste or generate above…&#10;-----END PRIVATE KEY-----"></textarea>
+      </div>
+      <div class="fg">
+        <label>Message to sign</label>
+        <textarea id="sign-msg" rows="4" placeholder="Enter the message you want to sign…"></textarea>
+      </div>
+      <div class="row-2" style="margin-bottom:16px;">
+        <div class="fg" style="margin:0;">
+          <label>Curve</label>
+          <select id="sign-curve">
+            <option value="P-256">P-256</option>
+            <option value="P-384">P-384</option>
+          </select>
+        </div>
+        <div class="fg" style="margin:0;">
+          <label>Hash</label>
+          <select id="sign-hash">
+            <option value="SHA-256">SHA-256</option>
+            <option value="SHA-384">SHA-384</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn" id="sign-btn" onclick="doSign()">
+        <span class="spinner"></span> Sign Message
+      </button>
+      <div id="sign-status" class="status"></div>
+
+      <div class="fg" style="margin-top:16px;">
+        <label>Signature — Hex</label>
+        <div class="out-box" id="sign-out"></div>
+        <div class="btn-row">
+          <button class="btn btn-sm" id="sig-copy" onclick="copyText(document.getElementById('sign-out').textContent,'sig-copy')">Copy signature</button>
+          <button class="btn btn-sm" id="fill-verify-btn" onclick="fillVerifyForm()">→ Send to Verify tab</button>
+        </div>
+      </div>
+
+      <!-- Signature breakdown -->
+      <div class="sig-breakdown" id="sig-info" style="display:none;">
+        <div class="sig-row"><span class="sig-label">Algorithm:</span><span class="sig-val" id="si-algo"></span></div>
+        <div class="sig-row"><span class="sig-label">Curve:</span><span class="sig-val" id="si-curve"></span></div>
+        <div class="sig-row"><span class="sig-label">Hash:</span><span class="sig-val" id="si-hash"></span></div>
+        <div class="sig-row"><span class="sig-label">Sig length:</span><span class="sig-val" id="si-len"></span></div>
+        <div class="sig-row"><span class="sig-label">Msg SHA-256:</span><span class="sig-val" id="si-msghash"></span></div>
+      </div>
+    </div>
+
+    <!-- VERIFY PANEL -->
+    <div id="panel-verify" class="panel">
+      <div class="fg">
+        <label>Public Key (PEM — SPKI)</label>
+        <textarea id="verify-pubkey" class="mono" rows="5"
+          placeholder="-----BEGIN PUBLIC KEY-----&#10;Paste the signer's public key…&#10;-----END PUBLIC KEY-----"></textarea>
+      </div>
+      <div class="fg">
+        <label>Original Message</label>
+        <textarea id="verify-msg" rows="3" placeholder="The original message that was signed…"></textarea>
+      </div>
+      <div class="fg">
+        <label>Signature — Hex</label>
+        <textarea id="verify-sig" class="mono" rows="3" placeholder="Paste the hex signature…"></textarea>
+      </div>
+      <div class="row-2" style="margin-bottom:16px;">
+        <div class="fg" style="margin:0;">
+          <label>Curve</label>
+          <select id="verify-curve">
+            <option value="P-256">P-256</option>
+            <option value="P-384">P-384</option>
+          </select>
+        </div>
+        <div class="fg" style="margin:0;">
+          <label>Hash</label>
+          <select id="verify-hash">
+            <option value="SHA-256">SHA-256</option>
+            <option value="SHA-384">SHA-384</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn" id="verify-btn" onclick="doVerify()">
+        <span class="spinner"></span> Verify Signature
+      </button>
+      <div id="verify-status" class="status"></div>
+
+      <div class="verify-result" id="verify-result">
+        <div class="verify-icon" id="verify-icon"></div>
+        <div class="verify-label" id="verify-label-text"></div>
+        <div class="verify-sub"  id="verify-sub-text"></div>
+      </div>
+    </div>
+
+    <details>
+      <summary>How ECDSA works</summary>
+      <p>
+        <strong>ECDSA (Elliptic Curve Digital Signature Algorithm)</strong> proves that a message was created
+        by someone holding a specific private key, without revealing that key.
+        To sign: the message is hashed (SHA-256 or SHA-384), and the hash is combined with the private key
+        and a random nonce to produce a signature — two integers <code>(r, s)</code> on the chosen curve.
+        To verify: anyone with the <em>public key</em> can confirm whether the <code>(r, s)</code> pair is
+        consistent with the message hash. If the message was altered even by a single byte, verification fails.
+        This enables <strong>non-repudiation</strong>: the signer cannot later deny having signed the message.
+      </p>
+    </details>
+  </div>
+</div>
+
+<script>
+// ── State ────────────────────────────────────────────────────────────────────
+let _keyPair    = null;
+let _lastSigHex = '';
+let _lastMsg    = '';
+let _lastPubPem = '';
+
+// ── UI helpers ────────────────────────────────────────────────────────────────
+function setMode(m) {
+  document.getElementById('panel-sign').classList.toggle('active',   m === 'sign');
+  document.getElementById('panel-verify').classList.toggle('active', m === 'verify');
+  document.getElementById('tab-sign').classList.toggle('active',     m === 'sign');
+  document.getElementById('tab-verify').classList.toggle('active',   m === 'verify');
+}
+function showStatus(id, msg, isErr) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.className = 'status ' + (isErr ? 'err' : 'ok');
+  setTimeout(() => { el.style.display = 'none'; }, 8000);
+}
+function setLoading(id, on) {
+  const b = document.getElementById(id);
+  b.disabled = on;
+  on ? b.classList.add('loading') : b.classList.remove('loading');
+}
+const _ct = {};
+function copyText(text, btnId) {
+  text = text ? text.trim() : '';
+  if (!text) return;
+  navigator.clipboard.writeText(text);
+  const btn = document.getElementById(btnId), orig = btn.textContent;
+  if (_ct[btnId]) clearInterval(_ct[btnId]);
+  let t = 30;
+  btn.textContent = `Clearing in ${t}s…`;
+  _ct[btnId] = setInterval(() => {
+    t--;
+    if (t <= 0) { clearInterval(_ct[btnId]); navigator.clipboard.writeText(''); btn.textContent = orig; }
+    else btn.textContent = `Clearing in ${t}s…`;
+  }, 1000);
+}
+
+// ── Encoding helpers ──────────────────────────────────────────────────────────
+function bufToHex(buf) {
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+function hexToBuf(hex) {
+  hex = hex.trim().replace(/\s/g,'');
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < bytes.length; i++) bytes[i] = parseInt(hex.substr(i*2,2),16);
+  return bytes.buffer;
+}
+function arrayBufferToPem(buffer, label) {
+  const b64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
+  return `-----BEGIN ${label}-----\n${b64.match(/.{1,64}/g).join('\n')}\n-----END ${label}-----`;
+}
+function pemToArrayBuffer(pem) {
+  const b64 = pem.replace(/-----BEGIN [^-]+-----/,'').replace(/-----END [^-]+-----/,'').replace(/\s/g,'');
+  return Uint8Array.from(atob(b64), c => c.charCodeAt(0)).buffer;
+}
+function downloadPem(elId, filename) {
+  const text = document.getElementById(elId).textContent.trim();
+  if (!text) return;
+  const url = URL.createObjectURL(new Blob([text], { type:'text/plain' }));
+  const a = document.createElement('a'); a.href=url; a.download=filename; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+function clearKeys() {
+  _keyPair = null;
+  document.getElementById('pub-pem').textContent  = '';
+  document.getElementById('priv-pem').textContent = '';
+  document.getElementById('key-display').style.display = 'none';
+}
+
+// ── Step 1: Generate ECDSA key pair ──────────────────────────────────────────
+async function generateSigningKeys() {
+  const curve = document.getElementById('curve-select').value;
+  const hash  = document.getElementById('hash-select').value;
+
+  setLoading('gen-btn', true);
+  try {
+    _keyPair = await crypto.subtle.generateKey(
+      { name: 'ECDSA', namedCurve: curve },
+      true,
+      ['sign', 'verify']
+    );
+
+    const pubRaw  = await crypto.subtle.exportKey('spki',  _keyPair.publicKey);
+    const privRaw = await crypto.subtle.exportKey('pkcs8', _keyPair.privateKey);
+
+    const pubPem  = arrayBufferToPem(pubRaw,  'PUBLIC KEY');
+    const privPem = arrayBufferToPem(privRaw, 'PRIVATE KEY');
+
+    document.getElementById('pub-pem').textContent  = pubPem;
+    document.getElementById('priv-pem').textContent = privPem;
+    document.getElementById('key-display').style.display = 'block';
+    _lastPubPem = pubPem;
+
+    // Auto-fill sign tab
+    document.getElementById('sign-privkey').value = privPem;
+    document.getElementById('sign-curve').value   = curve;
+    document.getElementById('sign-hash').value    = hash;
+
+    showStatus('gen-status', `✔ ECDSA key pair generated (${curve}, ${hash}).`, false);
+  } catch (e) {
+    showStatus('gen-status', 'Key generation failed: ' + e.message, true);
+  } finally {
+    setLoading('gen-btn', false);
+  }
+}
+
+// ── Step 2a: Sign ─────────────────────────────────────────────────────────────
+async function doSign() {
+  const pemText = document.getElementById('sign-privkey').value.trim();
+  const msg     = document.getElementById('sign-msg').value;
+  const curve   = document.getElementById('sign-curve').value;
+  const hash    = document.getElementById('sign-hash').value;
+
+  if (!pemText) return showStatus('sign-status', 'Please provide a private key.', true);
+  if (!msg)     return showStatus('sign-status', 'Please enter a message to sign.', true);
+
+  setLoading('sign-btn', true);
+  document.getElementById('sign-out').textContent = '';
+  document.getElementById('sig-info').style.display = 'none';
+
+  try {
+    const privKey = await crypto.subtle.importKey(
+      'pkcs8',
+      pemToArrayBuffer(pemText),
+      { name: 'ECDSA', namedCurve: curve },
+      false,
+      ['sign']
+    );
+
+    const msgBytes  = new TextEncoder().encode(msg);
+    const sigBuf    = await crypto.subtle.sign({ name: 'ECDSA', hash }, privKey, msgBytes);
+    const sigHex    = bufToHex(sigBuf);
+
+    // Compute message digest for the breakdown panel
+    const digestBuf = await crypto.subtle.digest(hash, msgBytes);
+    const digestHex = bufToHex(digestBuf);
+
+    _lastSigHex = sigHex;
+    _lastMsg    = msg;
+
+    document.getElementById('sign-out').textContent = sigHex;
+
+    // Fill breakdown
+    document.getElementById('si-algo').textContent  = 'ECDSA';
+    document.getElementById('si-curve').textContent = curve;
+    document.getElementById('si-hash').textContent  = hash;
+    document.getElementById('si-len').textContent   = `${sigBuf.byteLength} bytes (${sigBuf.byteLength*8} bits)`;
+    document.getElementById('si-msghash').textContent = digestHex;
+    document.getElementById('sig-info').style.display = 'block';
+
+    showStatus('sign-status', `✔ Message signed. Signature is ${sigBuf.byteLength} bytes (${curve}/${hash}).`, false);
+  } catch (e) {
+    showStatus('sign-status', 'Signing failed: ' + e.message, true);
+  } finally {
+    setLoading('sign-btn', false);
+  }
+}
+
+// Auto-fill verify tab from sign results
+function fillVerifyForm() {
+  if (!_lastSigHex) return;
+  document.getElementById('verify-pubkey').value = _lastPubPem || document.getElementById('pub-pem').textContent;
+  document.getElementById('verify-msg').value    = _lastMsg;
+  document.getElementById('verify-sig').value    = _lastSigHex;
+  document.getElementById('verify-curve').value  = document.getElementById('sign-curve').value;
+  document.getElementById('verify-hash').value   = document.getElementById('sign-hash').value;
+  setMode('verify');
+}
+
+// ── Step 2b: Verify ───────────────────────────────────────────────────────────
+async function doVerify() {
+  const pemText = document.getElementById('verify-pubkey').value.trim();
+  const msg     = document.getElementById('verify-msg').value;
+  const sigHex  = document.getElementById('verify-sig').value.trim();
+  const curve   = document.getElementById('verify-curve').value;
+  const hash    = document.getElementById('verify-hash').value;
+
+  if (!pemText) return showStatus('verify-status', 'Please provide the signer\'s public key.', true);
+  if (!msg)     return showStatus('verify-status', 'Please enter the original message.', true);
+  if (!sigHex)  return showStatus('verify-status', 'Please paste the hex signature.', true);
+
+  setLoading('verify-btn', true);
+  const resultEl = document.getElementById('verify-result');
+  resultEl.style.display = 'none';
+
+  try {
+    const pubKey = await crypto.subtle.importKey(
+      'spki',
+      pemToArrayBuffer(pemText),
+      { name: 'ECDSA', namedCurve: curve },
+      false,
+      ['verify']
+    );
+
+    const msgBytes = new TextEncoder().encode(msg);
+    let sigBuf;
+    try {
+      sigBuf = hexToBuf(sigHex);
+    } catch (_) {
+      throw new Error('Signature hex is malformed.');
+    }
+
+    const isValid = await crypto.subtle.verify(
+      { name: 'ECDSA', hash },
+      pubKey,
+      sigBuf,
+      msgBytes
+    );
+
+    // Show result
+    const icon  = document.getElementById('verify-icon');
+    const label = document.getElementById('verify-label-text');
+    const sub   = document.getElementById('verify-sub-text');
+
+    if (isValid) {
+      resultEl.className = 'verify-result valid';
+      icon.textContent   = '✅';
+      label.className    = 'verify-label valid';
+      label.textContent  = 'Signature Valid';
+      sub.textContent    = 'The message is authentic and has not been tampered with. The signature was produced by the private key matching this public key.';
+    } else {
+      resultEl.className = 'verify-result invalid';
+      icon.textContent   = '❌';
+      label.className    = 'verify-label invalid';
+      label.textContent  = 'Signature Invalid';
+      sub.textContent    = 'The signature does not match this message and public key. The message may have been altered, or the wrong key was used.';
+    }
+    showStatus('verify-status', isValid ? '✔ Verification passed.' : '✖ Verification failed.', !isValid);
+  } catch (e) {
+    const resultEl = document.getElementById('verify-result');
+    resultEl.className = 'verify-result invalid';
+    document.getElementById('verify-icon').textContent      = '⚠️';
+    document.getElementById('verify-label-text').className  = 'verify-label invalid';
+    document.getElementById('verify-label-text').textContent = 'Verification Error';
+    document.getElementById('verify-sub-text').textContent   = e.message;
+    showStatus('verify-status', 'Error during verification: ' + e.message, true);
+  } finally {
+    setLoading('verify-btn', false);
+  }
+}
+</script>
+</body>
+</html>

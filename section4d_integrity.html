@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aegis · 4d — File Integrity Checker</title>
+<style>
+  :root {
+    --bg:#0f1115; --panel:#1a1d24; --border:#2a2e39;
+    --primary:#3b82f6; --primary-hover:#2563eb;
+    --text:#e2e8f0; --text-muted:#94a3b8;
+    --error:#ef4444; --success:#22c55e; --warning:#f59e0b;
+    --mono:'Fira Code','Courier New',monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',system-ui,sans-serif;}
+  body{background:var(--bg);color:var(--text);padding:30px;min-height:100vh;}
+  h2{font-size:1.4rem;margin-bottom:6px;}
+  .subtitle{color:var(--text-muted);font-size:.85rem;margin-bottom:24px;}
+
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:24px;max-width:760px;margin:0 auto 28px;}
+  .card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px;}
+  .card-header h3{font-size:1.1rem;margin:0;}
+  .badge{padding:3px 10px;border-radius:20px;font-size:.7rem;font-weight:700;text-transform:uppercase;background:rgba(34,197,94,.15);color:var(--success);}
+
+  .mode-strip{display:flex;background:#15181e;border-radius:6px;border:1px solid var(--border);overflow:hidden;margin-bottom:22px;}
+  .mode-btn{flex:1;padding:10px;text-align:center;cursor:pointer;color:var(--text-muted);font-size:.85rem;font-weight:600;text-transform:uppercase;transition:.2s;border:none;background:none;}
+  .mode-btn.active{background:var(--panel);color:var(--primary);border-bottom:2px solid var(--primary);}
+  .panel{display:none;} .panel.active{display:block;}
+
+  .fg{margin-bottom:18px;position:relative;}
+  label{display:block;margin-bottom:7px;font-size:.85rem;color:var(--text-muted);font-weight:500;}
+  input[type=text],select,textarea{width:100%;padding:11px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:.9rem;transition:border-color .2s;resize:vertical;}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--primary);}
+
+  /* Drop zone */
+  .drop-zone{border:2px dashed var(--border);border-radius:8px;padding:36px 20px;text-align:center;cursor:pointer;transition:.2s;background:rgba(255,255,255,.01);}
+  .drop-zone:hover,.drop-zone.over{border-color:var(--primary);background:rgba(59,130,246,.06);}
+  .drop-zone p{color:var(--text-muted);font-size:.9rem;pointer-events:none;}
+  .drop-zone input{display:none;}
+  .file-badge{display:inline-flex;align-items:center;gap:8px;margin-top:12px;padding:8px 14px;background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.3);border-radius:6px;font-size:.82rem;color:var(--primary);font-family:var(--mono);}
+
+  .btn{display:inline-flex;align-items:center;gap:8px;padding:10px 18px;background:var(--primary);color:#fff;border:none;border-radius:6px;font-size:.9rem;font-weight:600;cursor:pointer;transition:background .2s;}
+  .btn:hover{background:var(--primary-hover);}
+  .btn:disabled{background:var(--border);color:var(--text-muted);cursor:not-allowed;}
+  .btn-sm{background:transparent;border:1px solid var(--border);color:var(--text);padding:7px 14px;font-size:.82rem;}
+  .btn-sm:hover{background:var(--border);}
+  .btn-danger{background:transparent;border:1px solid var(--error);color:var(--error);padding:7px 14px;font-size:.82rem;}
+  .btn-danger:hover{background:rgba(239,68,68,.1);}
+  .btn-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
+
+  .spinner{width:15px;height:15px;border:2px solid rgba(255,255,255,.3);border-radius:50%;border-top-color:#fff;animation:spin .7s linear infinite;display:none;}
+  .btn.loading .spinner{display:inline-block;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  .status{margin-top:12px;padding:10px 14px;border-radius:6px;font-size:.85rem;display:none;}
+  .status.ok{background:rgba(34,197,94,.1);color:var(--success);border:1px solid rgba(34,197,94,.25);display:block;}
+  .status.err{background:rgba(239,68,68,.1);color:var(--error);border:1px solid rgba(239,68,68,.25);display:block;}
+
+  /* Hash display */
+  .hash-display{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:16px;margin-top:16px;}
+  .hash-row{display:flex;gap:12px;margin-bottom:10px;flex-wrap:wrap;}
+  .hash-row:last-child{margin-bottom:0;}
+  .hl{font-size:.78rem;color:var(--text-muted);font-weight:600;min-width:80px;}
+  .hv{font-family:var(--mono);font-size:.78rem;word-break:break-all;color:var(--text);}
+
+  /* Progress bar */
+  .progress-wrap{margin:14px 0;display:none;}
+  .progress-bar-bg{background:var(--border);border-radius:4px;height:6px;overflow:hidden;}
+  .progress-bar-fill{background:var(--primary);height:100%;width:0%;transition:width .15s;border-radius:4px;}
+  .progress-label{font-size:.78rem;color:var(--text-muted);margin-top:6px;}
+
+  /* Verify result */
+  .verify-result{padding:20px;border-radius:10px;margin-top:20px;text-align:center;display:none;}
+  .verify-result.pass{background:rgba(34,197,94,.08);border:2px solid rgba(34,197,94,.35);display:block;}
+  .verify-result.fail{background:rgba(239,68,68,.08);border:2px solid rgba(239,68,68,.35);display:block;}
+  .verify-icon{font-size:3rem;margin-bottom:10px;}
+  .verify-title{font-size:1.2rem;font-weight:700;margin-bottom:6px;}
+  .verify-title.pass{color:var(--success);}
+  .verify-title.fail{color:var(--error);}
+  .verify-detail{font-size:.83rem;color:var(--text-muted);line-height:1.5;}
+  .hash-compare{margin-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:10px;text-align:left;}
+  @media(max-width:560px){.hash-compare{grid-template-columns:1fr;}}
+  .hc-box{background:rgba(0,0,0,.25);border-radius:6px;padding:10px;}
+  .hc-label{font-size:.73rem;color:var(--text-muted);font-weight:600;margin-bottom:5px;}
+  .hc-val{font-family:var(--mono);font-size:.72rem;word-break:break-all;}
+  .hc-val.match{color:var(--success);}
+  .hc-val.nomatch{color:var(--error);}
+
+  /* Saved hashes list */
+  .saved-list{margin-top:16px;}
+  .saved-item{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:10px;display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap;}
+  .saved-item-info{flex:1;min-width:0;}
+  .saved-filename{font-weight:600;font-size:.88rem;margin-bottom:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .saved-meta{font-size:.75rem;color:var(--text-muted);}
+  .saved-hash{font-family:var(--mono);font-size:.72rem;color:var(--text-muted);word-break:break-all;margin-top:4px;}
+
+  /* opts row */
+  .opts-2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px;}
+  @media(max-width:500px){.opts-2{grid-template-columns:1fr;}}
+
+  details{margin-top:22px;padding:14px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:6px;font-size:.83rem;color:var(--text-muted);}
+  details summary{cursor:pointer;font-weight:600;color:var(--text);}
+  details p{margin-top:10px;line-height:1.6;}
+</style>
+</head>
+<body>
+<div style="max-width:760px;margin:0 auto;">
+  <h2>4d — File Integrity Checker</h2>
+  <p class="subtitle">Hash a file and save the fingerprint · re-upload later to verify it hasn't changed</p>
+
+  <div class="card">
+    <div class="card-header">
+      <h3>File Integrity</h3>
+      <span class="badge">✔ SHA-256/512</span>
+    </div>
+
+    <div class="mode-strip">
+      <button class="mode-btn active" id="tab-stamp"  onclick="setMode('stamp')">📌 Stamp File</button>
+      <button class="mode-btn"        id="tab-verify" onclick="setMode('verify')">🔍 Verify File</button>
+      <button class="mode-btn"        id="tab-saved"  onclick="setMode('saved')">📋 Saved Hashes</button>
+    </div>
+
+    <!-- STAMP PANEL -->
+    <div id="panel-stamp" class="panel active">
+      <p style="font-size:.83rem;color:var(--text-muted);margin-bottom:16px;">
+        Hash a file to create its cryptographic fingerprint. Save the hash to detect any future changes.
+      </p>
+
+      <div class="opts-2">
+        <div class="fg" style="margin:0;">
+          <label>Hash Algorithm</label>
+          <select id="stamp-algo">
+            <option value="SHA-256">SHA-256 (recommended)</option>
+            <option value="SHA-512">SHA-512 (strongest)</option>
+            <option value="SHA-384">SHA-384</option>
+          </select>
+        </div>
+        <div class="fg" style="margin:0;">
+          <label>Output Encoding</label>
+          <select id="stamp-enc">
+            <option value="hex">Hex (lowercase)</option>
+            <option value="HEX">Hex (UPPERCASE)</option>
+            <option value="b64">Base64</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="fg">
+        <label>Select file to stamp</label>
+        <div class="drop-zone" id="stamp-drop"
+             ondragover="onDragOver(event,'stamp-drop')"
+             ondragleave="onDragLeave('stamp-drop')"
+             ondrop="onDrop(event,'stamp-file','stamp-badge')">
+          <p>Drag &amp; drop any file here, or click to browse</p>
+          <input type="file" id="stamp-file" onchange="showBadge(this,'stamp-badge')" onclick="event.stopPropagation()">
+          <div id="stamp-badge"></div>
+        </div>
+      </div>
+
+      <div class="progress-wrap" id="stamp-progress">
+        <div class="progress-bar-bg"><div class="progress-bar-fill" id="stamp-fill"></div></div>
+        <div class="progress-label" id="stamp-prog-label">Hashing…</div>
+      </div>
+
+      <button class="btn" id="stamp-btn" onclick="doStamp()">
+        <span class="spinner"></span> Hash &amp; Stamp File
+      </button>
+      <div id="stamp-status" class="status"></div>
+
+      <div class="hash-display" id="stamp-result" style="display:none;">
+        <div class="hash-row"><span class="hl">File</span>   <span class="hv" id="sr-file"></span></div>
+        <div class="hash-row"><span class="hl">Size</span>   <span class="hv" id="sr-size"></span></div>
+        <div class="hash-row"><span class="hl">Algorithm</span><span class="hv" id="sr-algo"></span></div>
+        <div class="hash-row"><span class="hl">Hash</span>   <span class="hv" id="sr-hash"></span></div>
+        <div class="hash-row"><span class="hl">Stamped</span><span class="hv" id="sr-time"></span></div>
+        <div class="btn-row" style="margin-top:12px;">
+          <button class="btn btn-sm" id="copy-stamp" onclick="copyText(document.getElementById('sr-hash').textContent,'copy-stamp')">Copy Hash</button>
+          <button class="btn btn-sm" onclick="downloadStampFile()">⬇ Download .sha256 file</button>
+          <button class="btn btn-sm" onclick="saveToList()">📌 Save to list</button>
+          <button class="btn btn-sm" onclick="sendToVerify()">→ Verify now</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- VERIFY PANEL -->
+    <div id="panel-verify" class="panel">
+      <p style="font-size:.83rem;color:var(--text-muted);margin-bottom:16px;">
+        Re-upload a file and compare against its previously saved hash. Any modification — even a single byte — will produce a different hash.
+      </p>
+
+      <div class="opts-2">
+        <div class="fg" style="margin:0;">
+          <label>Algorithm</label>
+          <select id="ver-algo">
+            <option value="SHA-256">SHA-256</option>
+            <option value="SHA-512">SHA-512</option>
+            <option value="SHA-384">SHA-384</option>
+          </select>
+        </div>
+        <div class="fg" style="margin:0;">
+          <label>Hash Encoding</label>
+          <select id="ver-enc">
+            <option value="hex">Hex</option>
+            <option value="b64">Base64</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="fg">
+        <label>Expected Hash</label>
+        <input type="text" id="ver-expected" placeholder="Paste the known-good hash here…"
+               style="font-family:var(--mono);font-size:.83rem;">
+      </div>
+
+      <div class="fg">
+        <label>File to verify</label>
+        <div class="drop-zone" id="ver-drop"
+             ondragover="onDragOver(event,'ver-drop')"
+             ondragleave="onDragLeave('ver-drop')"
+             ondrop="onDrop(event,'ver-file','ver-badge')">
+          <p>Drag &amp; drop the file to verify</p>
+          <input type="file" id="ver-file" onchange="showBadge(this,'ver-badge')" onclick="event.stopPropagation()">
+          <div id="ver-badge"></div>
+        </div>
+      </div>
+
+      <div class="progress-wrap" id="ver-progress">
+        <div class="progress-bar-bg"><div class="progress-bar-fill" id="ver-fill"></div></div>
+        <div class="progress-label" id="ver-prog-label">Hashing…</div>
+      </div>
+
+      <button class="btn" id="ver-btn" onclick="doVerify()">
+        <span class="spinner"></span> Verify Integrity
+      </button>
+      <div id="ver-status" class="status"></div>
+
+      <div class="verify-result" id="ver-result">
+        <div class="verify-icon"  id="vr-icon"></div>
+        <div class="verify-title" id="vr-title"></div>
+        <div class="verify-detail" id="vr-detail"></div>
+        <div class="hash-compare" id="vr-compare">
+          <div class="hc-box">
+            <div class="hc-label">Expected Hash</div>
+            <div class="hc-val" id="vr-expected-val"></div>
+          </div>
+          <div class="hc-box">
+            <div class="hc-label">Computed Hash</div>
+            <div class="hc-val" id="vr-computed-val"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SAVED HASHES PANEL -->
+    <div id="panel-saved" class="panel">
+      <p style="font-size:.83rem;color:var(--text-muted);margin-bottom:16px;">
+        Hashes saved in this session (stored in memory — cleared on page close).
+      </p>
+      <div class="btn-row" style="margin-bottom:14px;">
+        <button class="btn btn-sm btn-danger" onclick="clearSaved()">🗑 Clear all saved hashes</button>
+        <button class="btn btn-sm" onclick="exportSaved()">⬇ Export as JSON</button>
+      </div>
+      <div class="saved-list" id="saved-list">
+        <p style="color:var(--text-muted);font-size:.85rem;">No hashes saved yet. Stamp a file and click "Save to list".</p>
+      </div>
+    </div>
+
+    <details>
+      <summary>How file integrity checking works</summary>
+      <p>
+        A cryptographic hash function maps a file of any size to a fixed-length digest (fingerprint).
+        SHA-256 produces a 256-bit (64 hex character) digest; SHA-512 produces 512 bits.
+        The key property is <strong>collision resistance</strong>: it is computationally infeasible to
+        find two different files with the same hash, and even a single byte change in the file produces
+        a completely different hash (avalanche effect). This means you can verify a file downloaded
+        months later hasn't been corrupted or tampered with by comparing its hash to the original stamp.
+      </p>
+    </details>
+  </div>
+</div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────────
+let _stampResult = null; // last stamped file result
+let _savedHashes = [];   // in-memory list of saved stamps
+
+// ── UI helpers ────────────────────────────────────────────────────────────────
+function setMode(m) {
+  ['stamp','verify','saved'].forEach(id => {
+    document.getElementById('panel-' + id).classList.toggle('active', m === id);
+    document.getElementById('tab-'   + id).classList.toggle('active', m === id);
+  });
+  if (m === 'saved') renderSavedList();
+}
+function showStatus(id, msg, isErr) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.className = 'status ' + (isErr ? 'err' : 'ok');
+  setTimeout(() => { el.style.display = 'none'; }, 8000);
+}
+function setLoading(id, on) {
+  const b = document.getElementById(id);
+  b.disabled = on;
+  on ? b.classList.add('loading') : b.classList.remove('loading');
+}
+const _ct = {};
+function copyText(text, btnId) {
+  text = (text || '').trim();
+  if (!text) return;
+  navigator.clipboard.writeText(text);
+  const btn = document.getElementById(btnId), orig = btn.textContent;
+  if (_ct[btnId]) clearInterval(_ct[btnId]);
+  let t = 30;
+  btn.textContent = `Clearing in ${t}s…`;
+  _ct[btnId] = setInterval(() => {
+    t--;
+    if (t <= 0) { clearInterval(_ct[btnId]); navigator.clipboard.writeText(''); btn.textContent = orig; }
+    else btn.textContent = `Clearing in ${t}s…`;
+  }, 1000);
+}
+function fmtSize(n) {
+  if (n < 1024) return n + ' B';
+  if (n < 1048576) return (n/1024).toFixed(1) + ' KB';
+  return (n/1048576).toFixed(2) + ' MB';
+}
+
+// File drop & click
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('stamp-drop').addEventListener('click', () => document.getElementById('stamp-file').click());
+  document.getElementById('ver-drop').addEventListener('click',   () => document.getElementById('ver-file').click());
+});
+function onDragOver(e, id) { e.preventDefault(); document.getElementById(id).classList.add('over'); }
+function onDragLeave(id)   { document.getElementById(id).classList.remove('over'); }
+function onDrop(e, inputId, badgeId) {
+  e.preventDefault();
+  onDragLeave(e.currentTarget.id);
+  const f = e.dataTransfer.files[0]; if (!f) return;
+  try { const dt = new DataTransfer(); dt.items.add(f); document.getElementById(inputId).files = dt.files; } catch(_) {}
+  showBadgeFile(f, badgeId);
+}
+function showBadge(input, badgeId) { if (input.files[0]) showBadgeFile(input.files[0], badgeId); }
+function showBadgeFile(f, badgeId) {
+  const el = document.getElementById(badgeId);
+  el.innerHTML = `<div class="file-badge">📄 ${f.name} &nbsp;·&nbsp; ${fmtSize(f.size)}</div>`;
+}
+
+// ── Encoding helpers ──────────────────────────────────────────────────────────
+function bufToHex(buf, upper) {
+  const h = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+  return upper ? h.toUpperCase() : h;
+}
+function bufToB64(buf) { return btoa(String.fromCharCode(...new Uint8Array(buf))); }
+function encodeHash(buf, enc) {
+  if (enc === 'b64') return bufToB64(buf);
+  return bufToHex(buf, enc === 'HEX');
+}
+// Normalise hex/base64 to lowercase hex for comparison
+function normaliseHash(str) {
+  str = str.trim();
+  if (/^[0-9a-fA-F]+$/.test(str)) return str.toLowerCase();
+  try { return bufToHex(Uint8Array.from(atob(str), c => c.charCodeAt(0)).buffer, false); }
+  catch(_) { return str.toLowerCase(); }
+}
+
+function showProgress(wrapId, fillId, labelId, pct, label) {
+  const w = document.getElementById(wrapId);
+  w.style.display = 'block';
+  document.getElementById(fillId).style.width = pct + '%';
+  if (label) document.getElementById(labelId).textContent = label;
+}
+function hideProgress(wrapId) { document.getElementById(wrapId).style.display = 'none'; }
+
+// ── Hash file ─────────────────────────────────────────────────────────────────
+async function hashFile(file, algo, fillId, labelId, wrapId) {
+  showProgress(wrapId, fillId, labelId, 30, 'Reading file…');
+  const buf = await file.arrayBuffer();
+  showProgress(wrapId, fillId, labelId, 70, `Computing ${algo} hash…`);
+  const hashBuf = await crypto.subtle.digest(algo, buf);
+  showProgress(wrapId, fillId, labelId, 100, '✔ Done');
+  setTimeout(() => hideProgress(wrapId), 1500);
+  return hashBuf;
+}
+
+// ── Stamp ─────────────────────────────────────────────────────────────────────
+async function doStamp() {
+  const file = document.getElementById('stamp-file').files[0];
+  const algo = document.getElementById('stamp-algo').value;
+  const enc  = document.getElementById('stamp-enc').value;
+  if (!file) return showStatus('stamp-status', 'Please select a file.', true);
+
+  setLoading('stamp-btn', true);
+  document.getElementById('stamp-result').style.display = 'none';
+  try {
+    const hashBuf = await hashFile(file, algo, 'stamp-fill', 'stamp-prog-label', 'stamp-progress');
+    const hashStr = encodeHash(hashBuf, enc);
+    const now     = new Date().toLocaleString();
+
+    _stampResult = { filename: file.name, size: file.size, algo, enc, hash: hashStr, time: now };
+
+    document.getElementById('sr-file').textContent = file.name;
+    document.getElementById('sr-size').textContent = fmtSize(file.size);
+    document.getElementById('sr-algo').textContent = algo;
+    document.getElementById('sr-hash').textContent = hashStr;
+    document.getElementById('sr-time').textContent = now;
+    document.getElementById('stamp-result').style.display = 'block';
+
+    showStatus('stamp-status', `✔ File stamped with ${algo}.`, false);
+  } catch (e) {
+    showStatus('stamp-status', 'Hashing failed: ' + e.message, true);
+  } finally {
+    setLoading('stamp-btn', false);
+  }
+}
+
+// ── Download .sha256 / .sha512 file ───────────────────────────────────────────
+function downloadStampFile() {
+  if (!_stampResult) return;
+  const { filename, algo, hash } = _stampResult;
+  const ext  = algo.replace('-','').toLowerCase();
+  const text = `${hash}  ${filename}\n# Generated by Aegis Suite\n# Algorithm: ${algo}\n# Timestamp: ${_stampResult.time}\n`;
+  const url  = URL.createObjectURL(new Blob([text], { type:'text/plain' }));
+  const a    = document.createElement('a'); a.href = url;
+  a.download = filename + '.' + ext; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+// ── Save to list ──────────────────────────────────────────────────────────────
+function saveToList() {
+  if (!_stampResult) return;
+  _savedHashes.push({ ..._stampResult, id: Date.now() });
+  showStatus('stamp-status', '✔ Hash saved to list.', false);
+}
+
+// ── Send to verify tab ────────────────────────────────────────────────────────
+function sendToVerify() {
+  if (!_stampResult) return;
+  document.getElementById('ver-expected').value = _stampResult.hash;
+  document.getElementById('ver-algo').value     = _stampResult.algo;
+  document.getElementById('ver-enc').value      = _stampResult.enc;
+  setMode('verify');
+}
+
+// ── Verify ────────────────────────────────────────────────────────────────────
+async function doVerify() {
+  const file     = document.getElementById('ver-file').files[0];
+  const expected = document.getElementById('ver-expected').value.trim();
+  const algo     = document.getElementById('ver-algo').value;
+  const enc      = document.getElementById('ver-enc').value;
+
+  if (!file)     return showStatus('ver-status', 'Please select a file.', true);
+  if (!expected) return showStatus('ver-status', 'Please paste the expected hash.', true);
+
+  setLoading('ver-btn', true);
+  document.getElementById('ver-result').style.display = 'none';
+  try {
+    const hashBuf  = await hashFile(file, algo, 'ver-fill', 'ver-prog-label', 'ver-progress');
+    const computed = encodeHash(hashBuf, enc);
+
+    // Normalise both to lowercase hex for comparison (handles different encodings)
+    const expNorm  = normaliseHash(expected);
+    const comNorm  = normaliseHash(computed);
+    const match    = expNorm === comNorm;
+
+    const res = document.getElementById('ver-result');
+    res.className = 'verify-result ' + (match ? 'pass' : 'fail');
+
+    document.getElementById('vr-icon').textContent  = match ? '✅' : '❌';
+    const titleEl = document.getElementById('vr-title');
+    titleEl.textContent = match ? 'File Intact' : 'Integrity Violation';
+    titleEl.className   = 'verify-title ' + (match ? 'pass' : 'fail');
+    document.getElementById('vr-detail').textContent = match
+      ? `The file "${file.name}" matches the expected hash exactly. It has not been modified.`
+      : `The file "${file.name}" does NOT match the expected hash. It may have been corrupted or tampered with.`;
+
+    const expEl = document.getElementById('vr-expected-val');
+    const comEl = document.getElementById('vr-computed-val');
+    expEl.textContent = expected;
+    comEl.textContent = computed;
+    expEl.className   = 'hc-val ' + (match ? 'match' : 'nomatch');
+    comEl.className   = 'hc-val ' + (match ? 'match' : 'nomatch');
+
+    showStatus('ver-status', match ? '✔ Integrity verified — file is unchanged.' : '✖ MISMATCH — file has been altered.', !match);
+  } catch (e) {
+    showStatus('ver-status', 'Verification failed: ' + e.message, true);
+  } finally {
+    setLoading('ver-btn', false);
+  }
+}
+
+// ── Saved hashes list ─────────────────────────────────────────────────────────
+function renderSavedList() {
+  const el = document.getElementById('saved-list');
+  if (_savedHashes.length === 0) {
+    el.innerHTML = '<p style="color:var(--text-muted);font-size:.85rem;">No hashes saved yet. Stamp a file and click "Save to list".</p>';
+    return;
+  }
+  el.innerHTML = _savedHashes.map((item, idx) => `
+    <div class="saved-item">
+      <div class="saved-item-info">
+        <div class="saved-filename">📄 ${item.filename}</div>
+        <div class="saved-meta">${item.algo} · ${fmtSize(item.size)} · ${item.time}</div>
+        <div class="saved-hash">${item.hash}</div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-sm" onclick="loadSavedToVerify(${idx})">Verify</button>
+        <button class="btn btn-danger" onclick="deleteSaved(${idx})">✕</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function loadSavedToVerify(idx) {
+  const item = _savedHashes[idx];
+  document.getElementById('ver-expected').value = item.hash;
+  document.getElementById('ver-algo').value     = item.algo;
+  document.getElementById('ver-enc').value      = item.enc;
+  setMode('verify');
+}
+function deleteSaved(idx) {
+  _savedHashes.splice(idx, 1);
+  renderSavedList();
+}
+function clearSaved() {
+  if (_savedHashes.length === 0) return;
+  if (confirm('Clear all saved hashes?')) { _savedHashes = []; renderSavedList(); }
+}
+function exportSaved() {
+  if (_savedHashes.length === 0) return;
+  const json = JSON.stringify(_savedHashes, null, 2);
+  const url  = URL.createObjectURL(new Blob([json], { type:'application/json' }));
+  const a    = document.createElement('a'); a.href = url; a.download = 'aegis_hashes.json'; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+</script>
+</body>
+</html>

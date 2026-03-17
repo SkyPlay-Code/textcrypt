@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aegis · 8c — LSB Stego Detector</title>
+<style>
+  :root {
+    --bg:#0f1115; --panel:#1a1d24; --border:#2a2e39;
+    --primary:#3b82f6; --primary-hover:#2563eb;
+    --text:#e2e8f0; --text-muted:#94a3b8;
+    --error:#ef4444; --success:#22c55e; --warning:#f59e0b;
+    --mono:'Fira Code','Courier New',monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',system-ui,sans-serif;}
+  body{background:var(--bg);color:var(--text);padding:30px;min-height:100vh;}
+  h2{font-size:1.4rem;margin-bottom:6px;}
+  .subtitle{color:var(--text-muted);font-size:.85rem;margin-bottom:24px;}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:24px;max-width:900px;margin:0 auto 28px;}
+  .card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px;}
+  .card-header h3{font-size:1.1rem;margin:0;}
+  .badge{padding:3px 10px;border-radius:20px;font-size:.7rem;font-weight:700;text-transform:uppercase;}
+  .badge.ok{background:rgba(34,197,94,.15);color:var(--success);}
+  .badge.warn{background:rgba(245,158,11,.15);color:var(--warning);}
+  .fg{margin-bottom:18px;}
+  label{display:block;margin-bottom:7px;font-size:.85rem;color:var(--text-muted);font-weight:500;}
+  .drop-zone{border:2px dashed var(--border);border-radius:8px;padding:36px 20px;text-align:center;cursor:pointer;transition:.2s;background:rgba(255,255,255,.01);}
+  .drop-zone:hover,.drop-zone.over{border-color:var(--primary);background:rgba(59,130,246,.06);}
+  .drop-zone p{color:var(--text-muted);font-size:.9rem;pointer-events:none;}
+  .drop-zone input{display:none;}
+  .file-badge{display:inline-flex;align-items:center;gap:8px;margin-top:10px;padding:7px 14px;background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.3);border-radius:6px;font-size:.8rem;color:var(--primary);font-family:var(--mono);}
+  .btn{display:inline-flex;align-items:center;gap:7px;padding:10px 18px;background:var(--primary);color:#fff;border:none;border-radius:6px;font-size:.9rem;font-weight:600;cursor:pointer;transition:background .2s;}
+  .btn:hover{background:var(--primary-hover);}
+  .btn:disabled{background:var(--border);color:var(--text-muted);cursor:not-allowed;}
+  .spinner{width:15px;height:15px;border:2px solid rgba(255,255,255,.3);border-radius:50%;border-top-color:#fff;animation:spin .7s linear infinite;display:none;}
+  .btn.loading .spinner{display:inline-block;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .status{margin-top:12px;padding:10px 14px;border-radius:6px;font-size:.85rem;display:none;}
+  .status.ok{background:rgba(34,197,94,.1);color:var(--success);border:1px solid rgba(34,197,94,.25);display:block;}
+  .status.err{background:rgba(239,68,68,.1);color:var(--error);border:1px solid rgba(239,68,68,.25);display:block;}
+  /* Results */
+  .results{display:none;margin-top:20px;}
+  /* Verdict */
+  .verdict-box{padding:20px 24px;border-radius:10px;margin-bottom:18px;text-align:center;}
+  .verdict-box.suspicious{background:rgba(245,158,11,.08);border:2px solid rgba(245,158,11,.35);}
+  .verdict-box.likely-clean{background:rgba(34,197,94,.08);border:2px solid rgba(34,197,94,.3);}
+  .verdict-icon{font-size:3rem;margin-bottom:8px;}
+  .verdict-title{font-size:1.2rem;font-weight:700;margin-bottom:6px;}
+  .verdict-title.suspicious{color:var(--warning);}
+  .verdict-title.likely-clean{color:var(--success);}
+  .verdict-detail{font-size:.85rem;color:var(--text-muted);line-height:1.6;}
+  /* Image grid */
+  .img-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px;}
+  @media(max-width:580px){.img-grid{grid-template-columns:1fr;}}
+  .img-box{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:14px;text-align:center;}
+  .img-box-title{font-size:.78rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px;}
+  .img-box canvas{max-width:100%;border-radius:4px;display:block;margin:0 auto;}
+  .img-box img{max-width:100%;border-radius:4px;display:block;margin:0 auto;}
+  /* Channel selector */
+  .ch-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;}
+  .ch-btn{padding:7px 14px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text-muted);font-size:.82rem;font-weight:600;cursor:pointer;transition:.15s;}
+  .ch-btn:hover{border-color:var(--primary);}
+  .ch-btn.active{border-color:var(--primary);background:rgba(59,130,246,.12);color:var(--primary);}
+  /* Stats */
+  .stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;}
+  @media(max-width:480px){.stats-grid{grid-template-columns:1fr 1fr;}}
+  .stat{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:11px 13px;}
+  .stat-lbl{font-size:.7rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;}
+  .stat-num{font-size:1.1rem;font-weight:700;font-family:var(--mono);}
+  .stat-sub{font-size:.72rem;color:var(--text-muted);margin-top:2px;}
+  /* Chi-square bar */
+  .chi-bar-wrap{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:16px;}
+  .chi-lbl{font-size:.78rem;color:var(--text-muted);font-weight:600;margin-bottom:8px;}
+  .chi-bar-bg{height:24px;border-radius:4px;background:var(--border);overflow:hidden;position:relative;}
+  .chi-bar-fill{height:100%;border-radius:4px;transition:width .5s;}
+  .chi-bar-tick{position:absolute;top:0;bottom:0;width:2px;background:rgba(255,255,255,.5);}
+  .chi-val-row{display:flex;justify-content:space-between;margin-top:6px;font-size:.75rem;color:var(--text-muted);}
+  details{margin-top:22px;padding:14px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:6px;font-size:.83rem;color:var(--text-muted);}
+  details summary{cursor:pointer;font-weight:600;color:var(--text);}
+  details p{margin-top:10px;line-height:1.6;}
+  code{background:rgba(255,255,255,.07);padding:1px 5px;border-radius:3px;font-family:var(--mono);}
+</style>
+</head>
+<body>
+<div style="max-width:900px;margin:0 auto;">
+  <h2>8c — LSB Stego Detector</h2>
+  <p class="subtitle">Extract &amp; visualise the LSB plane · chi-square randomness test · per-channel analysis</p>
+
+  <div class="card">
+    <div class="card-header">
+      <h3>LSB Analysis</h3>
+      <span class="badge warn">Forensics</span>
+    </div>
+
+    <div class="fg">
+      <label>Image to analyze (PNG or JPEG)</label>
+      <div class="drop-zone" id="img-drop"
+           ondragover="onDragOver(event,'img-drop')" ondragleave="onDragLeave('img-drop')"
+           ondrop="onImgDrop(event)">
+        <p>Drag &amp; drop any PNG or JPEG image</p>
+        <input type="file" id="img-in" accept="image/png,image/jpeg" onchange="onImgSelect(this)" onclick="event.stopPropagation()">
+        <div id="img-badge"></div>
+      </div>
+    </div>
+
+    <button class="btn" id="analyze-btn" onclick="doAnalyze()">
+      <span class="spinner"></span> Analyze LSB Plane
+    </button>
+    <div id="analyze-status" class="status"></div>
+
+    <div class="results" id="results">
+      <!-- Verdict -->
+      <div class="verdict-box" id="verdict-box">
+        <div class="verdict-icon" id="verdict-icon"></div>
+        <div class="verdict-title" id="verdict-title"></div>
+        <div class="verdict-detail" id="verdict-detail"></div>
+      </div>
+
+      <!-- Channel selector -->
+      <div class="ch-row">
+        <span style="font-size:.83rem;color:var(--text-muted);align-self:center;">View LSB plane of:</span>
+        <button class="ch-btn active" id="ch-all" onclick="switchChannel('all')">All channels</button>
+        <button class="ch-btn" id="ch-r" onclick="switchChannel('r')">Red</button>
+        <button class="ch-btn" id="ch-g" onclick="switchChannel('g')">Green</button>
+        <button class="ch-btn" id="ch-b" onclick="switchChannel('b')">Blue</button>
+      </div>
+
+      <!-- Image comparison -->
+      <div class="img-grid">
+        <div class="img-box">
+          <div class="img-box-title">Original Image</div>
+          <img id="orig-img" src="" alt="original">
+        </div>
+        <div class="img-box">
+          <div class="img-box-title">LSB Plane (amplified × 255)</div>
+          <canvas id="lsb-canvas"></canvas>
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <div class="stats-grid">
+        <div class="stat"><div class="stat-lbl">Total Pixels</div><div class="stat-num" id="st-px">—</div></div>
+        <div class="stat"><div class="stat-lbl">LSB Ones Ratio</div><div class="stat-num" id="st-ones">—</div><div class="stat-sub">ideal random = 50%</div></div>
+        <div class="stat"><div class="stat-lbl">Chi-Square p-value</div><div class="stat-num" id="st-chi">—</div><div class="stat-sub" id="st-chi-sub"></div></div>
+        <div class="stat"><div class="stat-lbl">Image Size</div><div class="stat-num" id="st-size">—</div></div>
+        <div class="stat"><div class="stat-lbl">LSB Capacity</div><div class="stat-num" id="st-cap">—</div><div class="stat-sub">bytes if fully used</div></div>
+        <div class="stat"><div class="stat-lbl">Shannon Entropy (LSB)</div><div class="stat-num" id="st-ent">—</div><div class="stat-sub">bits/byte</div></div>
+      </div>
+
+      <!-- Chi-square bar -->
+      <div class="chi-bar-wrap">
+        <div class="chi-lbl">Chi-Square Deviation from Expected (uniform) Distribution</div>
+        <div class="chi-bar-bg">
+          <div class="chi-bar-fill" id="chi-fill"></div>
+          <!-- tick at "suspicious" threshold -->
+          <div class="chi-bar-tick" id="chi-tick" style="left:50%"></div>
+        </div>
+        <div class="chi-val-row">
+          <span>Perfectly uniform (stego likely)</span>
+          <span id="chi-val-label"></span>
+          <span>Non-uniform (likely clean)</span>
+        </div>
+      </div>
+    </div>
+
+    <details>
+      <summary>How LSB stego detection works</summary>
+      <p>
+        LSB (Least Significant Bit) steganography embeds secret data into the lowest bit of each
+        pixel channel. The LSB plane is extracted by isolating only the least significant bit of each
+        R, G, or B channel and amplifying it (×255) for visibility — a clean image shows gradual
+        patterns matching the image content, while a stego image shows a noisy/random-looking pattern.
+        <strong>Chi-square analysis</strong> tests whether the distribution of pixel values (before
+        LSB modification) is consistent with random embedding: stego tools tend to produce a very
+        even 50/50 split of 0 and 1 LSBs across pixel pairs (Pairs of Values, or PoV attack).
+        A ratio very close to 50% and high LSB entropy are indicators of possible hidden data.
+        However, this is heuristic — compressed JPEGs and natural images with smooth gradients
+        can produce false positives, and steganography tools that use fewer channels or partial
+        embedding may evade this analysis.
+      </p>
+    </details>
+  </div>
+</div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────────
+let _imgData  = null;
+let _origFile = null;
+
+// ── UI helpers ────────────────────────────────────────────────────────────────
+function onDragOver(e, id) { e.preventDefault(); document.getElementById(id).classList.add('over'); }
+function onDragLeave(id)   { document.getElementById(id).classList.remove('over'); }
+function onImgDrop(e) {
+  e.preventDefault(); onDragLeave('img-drop');
+  const f = e.dataTransfer.files[0]; if (!f) return;
+  try { const dt = new DataTransfer(); dt.items.add(f); document.getElementById('img-in').files = dt.files; } catch(_) {}
+  showBadge(f);
+}
+function onImgSelect(input) { if (input.files[0]) showBadge(input.files[0]); }
+function showBadge(f) {
+  document.getElementById('img-badge').innerHTML =
+    `<div class="file-badge">🖼️ ${f.name} · ${(f.size/1024).toFixed(1)} KB</div>`;
+}
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('img-drop').addEventListener('click', () =>
+    document.getElementById('img-in').click());
+});
+function setLoading(id, on) {
+  const b = document.getElementById(id); b.disabled = on;
+  on ? b.classList.add('loading') : b.classList.remove('loading');
+}
+function showStatus(id, msg, isErr) {
+  const el = document.getElementById(id);
+  el.textContent = msg; el.className = 'status ' + (isErr ? 'err' : 'ok');
+  setTimeout(() => { el.style.display = 'none'; }, 8000);
+}
+
+// ── Load image into canvas / ImageData ────────────────────────────────────────
+function loadImage(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const c   = document.createElement('canvas');
+      c.width   = img.width; c.height = img.height;
+      c.getContext('2d').drawImage(img, 0, 0);
+      URL.revokeObjectURL(url);
+      resolve({ imgData: c.getContext('2d').getImageData(0, 0, img.width, img.height), w: img.width, h: img.height });
+    };
+    img.onerror = () => reject(new Error('Could not decode image.'));
+    img.src = url;
+  });
+}
+
+// ── Analysis ──────────────────────────────────────────────────────────────────
+async function doAnalyze() {
+  const file = document.getElementById('img-in').files[0];
+  if (!file) return showStatus('analyze-status', 'Please select an image.', true);
+
+  setLoading('analyze-btn', true);
+  document.getElementById('results').style.display = 'none';
+  try {
+    const { imgData, w, h } = await loadImage(file);
+    _imgData = imgData; _origFile = file;
+
+    const data  = imgData.data; // RGBA
+    const npx   = w * h;
+
+    // Count LSB 1s across RGB channels (skip alpha)
+    let ones = 0, total = 0;
+    for (let i = 0; i < data.length; i++) {
+      if ((i + 1) % 4 === 0) continue; // skip alpha
+      ones  += data[i] & 1;
+      total++;
+    }
+    const onesRatio = ones / total;
+
+    // Shannon entropy of LSB sequence
+    const p1 = onesRatio, p0 = 1 - onesRatio;
+    const entropy = (p0 > 0 && p1 > 0)
+      ? -(p0 * Math.log2(p0) + p1 * Math.log2(p1))
+      : 0;
+
+    // Chi-square test on LSB pairs (PoV — Pairs of Values attack)
+    // For each even pixel value 2k, count freq[2k] and freq[2k+1]
+    // Under stego embedding these should be equal
+    const freq = new Uint32Array(256);
+    for (let i = 0; i < data.length; i += 4) {
+      freq[data[i]]++;     // R
+      freq[data[i+1]]++;   // G
+      freq[data[i+2]]++;   // B
+    }
+    let chi2 = 0;
+    for (let k = 0; k < 128; k++) {
+      const e = (freq[2*k] + freq[2*k+1]) / 2;
+      if (e > 0) {
+        chi2 += Math.pow(freq[2*k] - e, 2) / e + Math.pow(freq[2*k+1] - e, 2) / e;
+      }
+    }
+
+    // Normalise chi2 to 0-1 scale for bar display
+    // chi2 near 0 = suspicious (pairs equal), chi2 > 300 = likely clean
+    const CHI_CLEAN = 400;
+    const chiNorm   = Math.min(chi2 / CHI_CLEAN, 1);
+
+    // Verdict: suspicious if onesRatio near 50% AND entropy near 1.0 AND chi2 low
+    const suspicious =
+      Math.abs(onesRatio - 0.5) < 0.02 &&
+      entropy > 0.97 &&
+      chi2 < 200;
+
+    // Render original image preview
+    const origImg = document.getElementById('orig-img');
+    origImg.src   = URL.createObjectURL(file);
+
+    // Render LSB plane
+    renderLSBCanvas('all', imgData, w, h);
+
+    // Verdict
+    const vBox   = document.getElementById('verdict-box');
+    const vIcon  = document.getElementById('verdict-icon');
+    const vTitle = document.getElementById('verdict-title');
+    const vDetail= document.getElementById('verdict-detail');
+    if (suspicious) {
+      vBox.className   = 'verdict-box suspicious';
+      vIcon.textContent = '⚠️';
+      vTitle.textContent = 'Possible Hidden Data Detected';
+      vTitle.className  = 'verdict-title suspicious';
+      vDetail.textContent =
+        `The LSB plane shows near-perfect randomness (${(onesRatio*100).toFixed(2)}% ones, entropy ${entropy.toFixed(4)} bits). ` +
+        `The chi-square PoV test score (${chi2.toFixed(1)}) is below the "clean" threshold, suggesting ` +
+        `the LSB distribution may have been manipulated by steganographic embedding. This is a heuristic — not proof.`;
+    } else {
+      vBox.className   = 'verdict-box likely-clean';
+      vIcon.textContent = '✅';
+      vTitle.textContent = 'LSB Plane Appears Clean';
+      vTitle.className  = 'verdict-title likely-clean';
+      vDetail.textContent =
+        `No strong statistical indicators of LSB steganography found. ` +
+        `Ones ratio: ${(onesRatio*100).toFixed(2)}%, entropy: ${entropy.toFixed(4)} bits, chi-square score: ${chi2.toFixed(1)}. ` +
+        `The LSB distribution is consistent with a normal, unmodified image. ` +
+        `Note: partial or encrypted stego payloads may still evade this analysis.`;
+    }
+
+    // Stats
+    document.getElementById('st-px').textContent   = npx.toLocaleString();
+    document.getElementById('st-ones').textContent = (onesRatio*100).toFixed(3) + '%';
+    document.getElementById('st-chi').textContent  = chi2.toFixed(2);
+    document.getElementById('st-chi-sub').textContent = chi2 < 200 ? '⚠ Low — suspicious' : '✔ Normal range';
+    document.getElementById('st-size').textContent = `${w} × ${h}`;
+    document.getElementById('st-cap').textContent  = Math.floor(total / 8).toLocaleString();
+    document.getElementById('st-ent').textContent  = entropy.toFixed(4);
+
+    // Chi bar
+    const fill = document.getElementById('chi-fill');
+    fill.style.width = (chiNorm * 100) + '%';
+    fill.style.background = chiNorm < 0.5 ? '#f59e0b' : '#22c55e';
+    document.getElementById('chi-val-label').textContent = `χ² = ${chi2.toFixed(1)}`;
+
+    document.getElementById('results').style.display = 'block';
+    showStatus('analyze-status', `✔ Analysis complete — ${w}×${h} image, ${npx.toLocaleString()} pixels.`, false);
+  } catch (e) {
+    showStatus('analyze-status', 'Analysis failed: ' + e.message, true);
+  } finally {
+    setLoading('analyze-btn', false);
+  }
+}
+
+// ── LSB canvas rendering ──────────────────────────────────────────────────────
+function renderLSBCanvas(channel, imgData, w, h) {
+  const canvas  = document.getElementById('lsb-canvas');
+  const dpr     = window.devicePixelRatio || 1;
+  // Limit display size
+  const maxW    = 400, maxH = 400;
+  const scale   = Math.min(maxW / w, maxH / h, 1);
+  const dW      = Math.round(w * scale), dH = Math.round(h * scale);
+  canvas.width  = dW; canvas.height = dH;
+  canvas.style.width = dW + 'px'; canvas.style.height = dH + 'px';
+
+  const ctx     = canvas.getContext('2d');
+  const src     = imgData.data;
+  const out     = ctx.createImageData(dW, dH);
+  const od      = out.data;
+
+  for (let py = 0; py < dH; py++) {
+    for (let px = 0; px < dW; px++) {
+      const sx = Math.floor(px / scale);
+      const sy = Math.floor(py / scale);
+      const si = (sy * w + sx) * 4;
+      const di = (py * dW + px) * 4;
+
+      let lsb;
+      if (channel === 'r')   lsb = (src[si] & 1) * 255;
+      else if (channel === 'g') lsb = (src[si+1] & 1) * 255;
+      else if (channel === 'b') lsb = (src[si+2] & 1) * 255;
+      else {
+        // All channels: average LSBs of R,G,B
+        const bits = (src[si] & 1) + (src[si+1] & 1) + (src[si+2] & 1);
+        lsb = Math.round(bits / 3 * 255);
+      }
+      od[di] = od[di+1] = od[di+2] = lsb;
+      od[di+3] = 255;
+    }
+  }
+  ctx.putImageData(out, 0, 0);
+}
+
+function switchChannel(ch) {
+  ['all','r','g','b'].forEach(c => {
+    document.getElementById('ch-' + c).classList.toggle('active', c === ch);
+  });
+  if (_imgData) renderLSBCanvas(ch, _imgData, _imgData.width, _imgData.height);
+}
+</script>
+</body>
+</html>

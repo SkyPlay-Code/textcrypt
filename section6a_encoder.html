@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aegis · 6a — Universal Encoder/Decoder</title>
+<style>
+  :root {
+    --bg:#0f1115; --panel:#1a1d24; --border:#2a2e39;
+    --primary:#3b82f6; --primary-hover:#2563eb;
+    --text:#e2e8f0; --text-muted:#94a3b8;
+    --error:#ef4444; --success:#22c55e; --warning:#f59e0b;
+    --mono:'Fira Code','Courier New',monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',system-ui,sans-serif;}
+  body{background:var(--bg);color:var(--text);padding:30px;min-height:100vh;}
+  h2{font-size:1.4rem;margin-bottom:6px;}
+  .subtitle{color:var(--text-muted);font-size:.85rem;margin-bottom:24px;}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:24px;max-width:820px;margin:0 auto 28px;}
+  .card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px;}
+  .card-header h3{font-size:1.1rem;margin:0;}
+  .badge{padding:3px 10px;border-radius:20px;font-size:.7rem;font-weight:700;text-transform:uppercase;background:rgba(34,197,94,.15);color:var(--success);}
+
+  .fg{margin-bottom:16px;}
+  label{display:block;margin-bottom:6px;font-size:.83rem;color:var(--text-muted);font-weight:500;}
+  textarea{width:100%;padding:11px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:.9rem;resize:vertical;font-family:var(--mono);}
+  textarea:focus{outline:none;border-color:var(--primary);}
+  select{padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:.88rem;cursor:pointer;}
+  select:focus{outline:none;border-color:var(--primary);}
+
+  /* Format selector strip */
+  .fmt-strip{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;}
+  .fmt-btn{padding:7px 14px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text-muted);font-size:.82rem;font-weight:600;cursor:pointer;transition:.15s;}
+  .fmt-btn:hover{border-color:var(--primary);color:var(--primary);}
+  .fmt-btn.active{border-color:var(--primary);background:rgba(59,130,246,.12);color:var(--primary);}
+  .fmt-label{font-size:.72rem;color:var(--text-muted);margin-bottom:7px;}
+
+  /* Two-column convert layout */
+  .convert-grid{display:grid;grid-template-columns:1fr auto 1fr;gap:14px;align-items:start;margin-bottom:16px;}
+  @media(max-width:600px){.convert-grid{grid-template-columns:1fr;}}
+  .arrow-col{display:flex;flex-direction:column;align-items:center;justify-content:center;padding-top:28px;gap:6px;}
+  @media(max-width:600px){.arrow-col{flex-direction:row;padding-top:0;}}
+  .arrow-btn{background:var(--primary);border:none;color:#fff;border-radius:8px;width:36px;height:36px;cursor:pointer;font-size:1.1rem;display:flex;align-items:center;justify-content:center;transition:background .2s;}
+  .arrow-btn:hover{background:var(--primary-hover);}
+
+  .out-box{font-family:var(--mono);font-size:.82rem;background:var(--bg);border:1px solid var(--border);padding:11px;border-radius:6px;word-break:break-all;min-height:100px;white-space:pre-wrap;overflow-x:auto;color:var(--text);}
+
+  .btn{display:inline-flex;align-items:center;gap:7px;padding:9px 16px;background:var(--primary);color:#fff;border:none;border-radius:6px;font-size:.88rem;font-weight:600;cursor:pointer;transition:background .2s;}
+  .btn:hover{background:var(--primary-hover);}
+  .btn-sm{background:transparent;border:1px solid var(--border);color:var(--text);padding:7px 12px;font-size:.8rem;}
+  .btn-sm:hover{background:var(--border);}
+  .btn-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
+
+  .status{margin-top:10px;padding:9px 13px;border-radius:6px;font-size:.83rem;display:none;}
+  .status.ok{background:rgba(34,197,94,.1);color:var(--success);border:1px solid rgba(34,197,94,.25);display:block;}
+  .status.err{background:rgba(239,68,68,.1);color:var(--error);border:1px solid rgba(239,68,68,.25);display:block;}
+
+  /* Auto-detect badge */
+  .detect-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:20px;font-size:.72rem;font-weight:700;background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.3);color:var(--primary);margin-left:8px;vertical-align:middle;}
+
+  /* Quick table of all encodings */
+  .all-grid{display:flex;flex-direction:column;gap:8px;margin-top:4px;}
+  .all-row{background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:10px 13px;display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap;}
+  .all-fmt{font-size:.78rem;font-weight:700;color:var(--primary);min-width:80px;margin-top:2px;}
+  .all-val{font-family:var(--mono);font-size:.77rem;word-break:break-all;flex:1;color:var(--text);}
+  .all-copy{background:transparent;border:1px solid var(--border);color:var(--text-muted);padding:3px 9px;border-radius:4px;font-size:.73rem;cursor:pointer;flex-shrink:0;}
+  .all-copy:hover{border-color:var(--primary);color:var(--primary);}
+
+  details{margin-top:22px;padding:14px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:6px;font-size:.83rem;color:var(--text-muted);}
+  details summary{cursor:pointer;font-weight:600;color:var(--text);}
+  details p{margin-top:10px;line-height:1.6;}
+  code{background:rgba(255,255,255,.07);padding:1px 5px;border-radius:3px;font-family:var(--mono);}
+</style>
+</head>
+<body>
+<div style="max-width:820px;margin:0 auto;">
+  <h2>6a — Universal Encoder / Decoder</h2>
+  <p class="subtitle">Base64 · Base32 · Base58 · Hex · Binary · URL encoding · auto-detect input format</p>
+
+  <div class="card">
+    <div class="card-header">
+      <h3>Converter</h3>
+      <span class="badge">7 Formats</span>
+    </div>
+
+    <!-- Input -->
+    <div class="fg">
+      <label>
+        Input
+        <span id="detect-badge" class="detect-badge" style="display:none"></span>
+      </label>
+      <textarea id="inp" rows="5" placeholder="Type, paste, or drop text here — all encodings shown automatically below…"
+                oninput="onInput()"></textarea>
+    </div>
+
+    <!-- From/To selectors for directed conversion -->
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;align-items:flex-end;">
+      <div>
+        <div class="fmt-label">From format</div>
+        <select id="from-fmt" onchange="convert()">
+          <option value="auto">🔍 Auto-detect</option>
+          <option value="text">Plain Text / UTF-8</option>
+          <option value="base64">Base64</option>
+          <option value="base32">Base32</option>
+          <option value="base58">Base58</option>
+          <option value="hex">Hexadecimal</option>
+          <option value="binary">Binary (01 bits)</option>
+          <option value="url">URL Encoded</option>
+        </select>
+      </div>
+      <div style="align-self:center;padding-bottom:1px;font-size:1.3rem;color:var(--text-muted);">→</div>
+      <div>
+        <div class="fmt-label">To format</div>
+        <select id="to-fmt" onchange="convert()">
+          <option value="text">Plain Text / UTF-8</option>
+          <option value="base64">Base64</option>
+          <option value="base32">Base32</option>
+          <option value="base58">Base58</option>
+          <option value="hex">Hexadecimal</option>
+          <option value="binary">Binary (01 bits)</option>
+          <option value="url">URL Encoded</option>
+        </select>
+      </div>
+      <button class="btn" onclick="convert()">Convert</button>
+      <button class="btn btn-sm" onclick="swapInOut()">⇄ Swap</button>
+    </div>
+
+    <!-- Directed output -->
+    <div class="fg">
+      <label>Converted Output</label>
+      <div class="out-box" id="conv-out"></div>
+      <div class="btn-row">
+        <button class="btn btn-sm" id="conv-copy" onclick="copyText(document.getElementById('conv-out').textContent,'conv-copy')">Copy</button>
+        <button class="btn btn-sm" onclick="useOutputAsInput()">Use as input →</button>
+      </div>
+    </div>
+    <div id="conv-status" class="status"></div>
+
+    <!-- All encodings at once -->
+    <div style="margin-top:20px;">
+      <div class="fmt-label" style="font-size:.8rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;">
+        All Encodings (from plain text / auto-decoded input)
+      </div>
+      <div class="all-grid" id="all-grid"></div>
+    </div>
+
+    <details>
+      <summary>About the encoding formats</summary>
+      <p>
+        <strong>Base64</strong> — 64-char alphabet (A–Z a–z 0–9 +/), pads with =. Standard for email attachments, JWTs, and binary-in-JSON.
+        <strong>Base32</strong> — 32-char alphabet (A–Z 2–7), case-insensitive. Used in TOTP seeds, file systems that are case-insensitive.
+        <strong>Base58</strong> — Bitcoin's alphabet (no 0, O, I, l to avoid visual ambiguity). Used in crypto addresses, IPFS hashes.
+        <strong>Hex</strong> — 16-char alphabet (0–9 a–f). Universal; used in hashes, cryptographic keys, color codes.
+        <strong>Binary</strong> — raw 0/1 bit string. Space-separated bytes for readability.
+        <strong>URL encoding</strong> — percent-encoding (<code>%XX</code>) for safe transmission in URLs.
+      </p>
+    </details>
+  </div>
+</div>
+
+<script>
+// ── Base32 (RFC 4648) ─────────────────────────────────────────────────────────
+const B32_ALPHA = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+function base32Encode(bytes) {
+  let bits = 0, val = 0, out = '';
+  for (let i = 0; i < bytes.length; i++) {
+    val = (val << 8) | bytes[i]; bits += 8;
+    while (bits >= 5) { out += B32_ALPHA[(val >>> (bits - 5)) & 31]; bits -= 5; }
+  }
+  if (bits > 0) out += B32_ALPHA[(val << (5 - bits)) & 31];
+  while (out.length % 8) out += '=';
+  return out;
+}
+function base32Decode(str) {
+  str = str.toUpperCase().replace(/=+$/, '');
+  let bits = 0, val = 0;
+  const out = [];
+  for (const c of str) {
+    const idx = B32_ALPHA.indexOf(c);
+    if (idx === -1) continue;
+    val = (val << 5) | idx; bits += 5;
+    if (bits >= 8) { out.push((val >>> (bits - 8)) & 255); bits -= 8; }
+  }
+  return new Uint8Array(out);
+}
+
+// ── Base58 (Bitcoin alphabet) ─────────────────────────────────────────────────
+const B58_ALPHA = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+function base58Encode(bytes) {
+  let n = 0n;
+  for (const b of bytes) n = (n << 8n) | BigInt(b);
+  if (n === 0n && bytes.length === 0) return '';
+  let out = '';
+  const base = BigInt(B58_ALPHA.length);
+  while (n > 0n) { out = B58_ALPHA[Number(n % base)] + out; n /= base; }
+  // Leading zero bytes → '1'
+  for (const b of bytes) { if (b !== 0) break; out = '1' + out; }
+  return out;
+}
+function base58Decode(str) {
+  let n = 0n;
+  for (const c of str) {
+    const idx = B58_ALPHA.indexOf(c);
+    if (idx === -1) throw new Error(`Invalid Base58 character: ${c}`);
+    n = n * 58n + BigInt(idx);
+  }
+  const bytes = [];
+  while (n > 0n) { bytes.unshift(Number(n & 0xFFn)); n >>= 8n; }
+  for (const c of str) { if (c !== '1') break; bytes.unshift(0); }
+  return new Uint8Array(bytes);
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function strToBytes(s)    { return new TextEncoder().encode(s); }
+function bytesToStr(buf)  { return new TextDecoder().decode(buf); }
+function toB64(b)         { return btoa(String.fromCharCode(...b)); }
+function fromB64(s)       { return Uint8Array.from(atob(s.replace(/\s/g,'')), c => c.charCodeAt(0)); }
+function toHex(b)         { return Array.from(b).map(x => x.toString(16).padStart(2,'0')).join(''); }
+function fromHex(s) {
+  s = s.replace(/\s/g,''); if (s.length % 2) throw new Error('Odd hex length');
+  return Uint8Array.from({length:s.length/2}, (_,i) => parseInt(s.substr(i*2,2),16));
+}
+function toBinary(b)      { return Array.from(b).map(x => x.toString(2).padStart(8,'0')).join(' '); }
+function fromBinary(s) {
+  const bits = s.replace(/\s/g,'');
+  if (bits.length % 8) throw new Error('Binary length must be multiple of 8');
+  return Uint8Array.from({length:bits.length/8}, (_,i) => parseInt(bits.substr(i*8,8),2));
+}
+function toURL(s)   { return encodeURIComponent(s); }
+function fromURL(s) { return decodeURIComponent(s); }
+
+// ── Auto-detect format ────────────────────────────────────────────────────────
+function detectFormat(s) {
+  s = s.trim();
+  if (/^[01\s]+$/.test(s) && s.replace(/\s/g,'').length % 8 === 0 && s.length > 3) return 'binary';
+  if (/^[0-9a-fA-F\s]+$/.test(s) && s.replace(/\s/g,'').length % 2 === 0 && s.length > 1) return 'hex';
+  if (/^[A-Z2-7]+=*$/.test(s.toUpperCase()) && s.length % 8 === 0 && s.length > 0) return 'base32';
+  if (/^[A-Za-z0-9+/]+=*$/.test(s) && s.length % 4 === 0 && s.length >= 4) return 'base64';
+  if (/^[1-9A-HJ-NP-Za-km-z]+$/.test(s) && s.length > 3) return 'base58';
+  if (/%[0-9A-Fa-f]{2}/.test(s)) return 'url';
+  return 'text';
+}
+
+// ── Decode to bytes from a given format ──────────────────────────────────────
+function decodeToBytes(s, fmt) {
+  s = s.trim();
+  switch(fmt) {
+    case 'text':   return strToBytes(s);
+    case 'base64': return fromB64(s);
+    case 'base32': return base32Decode(s);
+    case 'base58': return base58Decode(s);
+    case 'hex':    return fromHex(s);
+    case 'binary': return fromBinary(s);
+    case 'url':    return strToBytes(fromURL(s));
+    case 'auto':   return decodeToBytes(s, detectFormat(s));
+    default: return strToBytes(s);
+  }
+}
+
+// ── Encode bytes to a given format ───────────────────────────────────────────
+function encodeFromBytes(bytes, fmt) {
+  switch(fmt) {
+    case 'text':   return bytesToStr(bytes);
+    case 'base64': return toB64(bytes);
+    case 'base32': return base32Encode(bytes);
+    case 'base58': return base58Encode(bytes);
+    case 'hex':    return toHex(bytes);
+    case 'binary': return toBinary(bytes);
+    case 'url':    return toURL(bytesToStr(bytes));
+    default: return bytesToStr(bytes);
+  }
+}
+
+// ── UI ────────────────────────────────────────────────────────────────────────
+function showStatus(msg, isErr) {
+  const el = document.getElementById('conv-status');
+  el.textContent = msg;
+  el.className   = 'status ' + (isErr ? 'err' : 'ok');
+  setTimeout(() => { el.style.display='none'; }, 6000);
+}
+
+const _ct = {};
+function copyText(text, btnId) {
+  text = (text||'').trim(); if (!text) return;
+  navigator.clipboard.writeText(text);
+  const btn = document.getElementById(btnId), orig = btn.textContent;
+  if (_ct[btnId]) clearInterval(_ct[btnId]);
+  let t = 30; btn.textContent = t + 's';
+  _ct[btnId] = setInterval(() => {
+    t--;
+    if (t <= 0) { clearInterval(_ct[btnId]); navigator.clipboard.writeText(''); btn.textContent = orig; }
+    else btn.textContent = t + 's';
+  }, 1000);
+}
+
+let _allCopyTimers = {};
+
+function onInput() {
+  const s   = document.getElementById('inp').value;
+  const fmt = detectFormat(s.trim());
+  const db  = document.getElementById('detect-badge');
+  if (s.trim() && fmt !== 'text') {
+    db.textContent = `Detected: ${fmt}`; db.style.display='inline-flex';
+  } else {
+    db.style.display='none';
+  }
+  convert();
+  renderAll();
+}
+
+function convert() {
+  const inp  = document.getElementById('inp').value;
+  const from = document.getElementById('from-fmt').value;
+  const to   = document.getElementById('to-fmt').value;
+  const out  = document.getElementById('conv-out');
+
+  if (!inp.trim()) { out.textContent = ''; return; }
+  try {
+    const bytes  = decodeToBytes(inp, from);
+    const result = encodeFromBytes(bytes, to);
+    out.textContent = result;
+  } catch(e) {
+    out.textContent = '';
+    showStatus('Conversion error: ' + e.message, true);
+  }
+}
+
+function swapInOut() {
+  const out = document.getElementById('conv-out').textContent.trim();
+  if (!out) return;
+  document.getElementById('inp').value = out;
+  const from = document.getElementById('from-fmt').value;
+  const to   = document.getElementById('to-fmt').value;
+  document.getElementById('from-fmt').value = to;
+  document.getElementById('to-fmt').value   = from === 'auto' ? 'text' : from;
+  onInput();
+}
+
+function useOutputAsInput() {
+  const out = document.getElementById('conv-out').textContent.trim();
+  if (!out) return;
+  document.getElementById('inp').value = out;
+  onInput();
+}
+
+function renderAll() {
+  const s   = document.getElementById('inp').value.trim();
+  const grid = document.getElementById('all-grid');
+  if (!s) { grid.innerHTML = ''; return; }
+
+  const fmtFrom = detectFormat(s);
+  let bytes;
+  try { bytes = decodeToBytes(s, fmtFrom); } catch(_) { bytes = strToBytes(s); }
+
+  const FMTS = [
+    { key:'text',   label:'Plain Text' },
+    { key:'base64', label:'Base64'     },
+    { key:'base32', label:'Base32'     },
+    { key:'base58', label:'Base58'     },
+    { key:'hex',    label:'Hex'        },
+    { key:'binary', label:'Binary'     },
+    { key:'url',    label:'URL Encoded'},
+  ];
+
+  grid.innerHTML = FMTS.map((f,i) => {
+    let val;
+    try { val = encodeFromBytes(bytes, f.key); } catch(e) { val = `(error: ${e.message})`; }
+    const tid = `allcopy${i}`;
+    return `<div class="all-row">
+      <span class="all-fmt">${f.label}</span>
+      <span class="all-val" id="allval${i}">${val}</span>
+      <button class="all-copy" id="${tid}" onclick="cpAll(${i},'${tid}')">Copy</button>
+    </div>`;
+  }).join('');
+}
+
+function cpAll(valIdx, btnId) {
+  const text = (document.getElementById('allval' + valIdx)?.textContent || '').trim();
+  if (!text) return;
+  navigator.clipboard.writeText(text);
+  const btn = document.getElementById(btnId), orig = btn.textContent;
+  if (_allCopyTimers[btnId]) clearInterval(_allCopyTimers[btnId]);
+  let t = 30; btn.textContent = t + 's';
+  _allCopyTimers[btnId] = setInterval(() => {
+    t--;
+    if (t <= 0) { clearInterval(_allCopyTimers[btnId]); navigator.clipboard.writeText(''); btn.textContent = orig; }
+    else btn.textContent = t + 's';
+  }, 1000);
+}
+</script>
+</body>
+</html>

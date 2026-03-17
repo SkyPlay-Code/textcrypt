@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aegis · 4b — HMAC Generator</title>
+<style>
+  :root {
+    --bg:#0f1115; --panel:#1a1d24; --border:#2a2e39;
+    --primary:#3b82f6; --primary-hover:#2563eb;
+    --text:#e2e8f0; --text-muted:#94a3b8;
+    --error:#ef4444; --success:#22c55e; --warning:#f59e0b;
+    --mono:'Fira Code','Courier New',monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',system-ui,sans-serif;}
+  body{background:var(--bg);color:var(--text);padding:30px;min-height:100vh;}
+  h2{font-size:1.4rem;margin-bottom:6px;}
+  .subtitle{color:var(--text-muted);font-size:.85rem;margin-bottom:24px;}
+
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:24px;max-width:760px;margin:0 auto 28px;}
+  .card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px;}
+  .card-header h3{font-size:1.1rem;margin:0;}
+  .badge{padding:3px 10px;border-radius:20px;font-size:.7rem;font-weight:700;text-transform:uppercase;background:rgba(34,197,94,.15);color:var(--success);}
+
+  .mode-strip{display:flex;background:#15181e;border-radius:6px;border:1px solid var(--border);overflow:hidden;margin-bottom:22px;}
+  .mode-btn{flex:1;padding:10px;text-align:center;cursor:pointer;color:var(--text-muted);font-size:.85rem;font-weight:600;text-transform:uppercase;transition:.2s;border:none;background:none;}
+  .mode-btn.active{background:var(--panel);color:var(--primary);border-bottom:2px solid var(--primary);}
+  .panel{display:none;} .panel.active{display:block;}
+
+  .fg{margin-bottom:18px;position:relative;}
+  label{display:block;margin-bottom:7px;font-size:.85rem;color:var(--text-muted);font-weight:500;}
+  textarea,input[type=text],input[type=password],select{width:100%;padding:11px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:.9rem;transition:border-color .2s;resize:vertical;}
+  textarea:focus,input:focus,select:focus{outline:none;border-color:var(--primary);}
+  .eye{position:absolute;right:10px;top:33px;background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1rem;}
+
+  .out-box{font-family:var(--mono);font-size:.8rem;background:var(--bg);border:1px solid var(--border);padding:12px;border-radius:6px;word-break:break-all;min-height:48px;white-space:pre-wrap;}
+
+  .btn{display:inline-flex;align-items:center;gap:8px;padding:10px 18px;background:var(--primary);color:#fff;border:none;border-radius:6px;font-size:.9rem;font-weight:600;cursor:pointer;transition:background .2s;}
+  .btn:hover{background:var(--primary-hover);}
+  .btn:disabled{background:var(--border);color:var(--text-muted);cursor:not-allowed;}
+  .btn-sm{background:transparent;border:1px solid var(--border);color:var(--text);padding:7px 14px;font-size:.82rem;}
+  .btn-sm:hover{background:var(--border);}
+  .btn-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
+
+  .spinner{width:15px;height:15px;border:2px solid rgba(255,255,255,.3);border-radius:50%;border-top-color:#fff;animation:spin .7s linear infinite;display:none;}
+  .btn.loading .spinner{display:inline-block;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  .status{margin-top:12px;padding:10px 14px;border-radius:6px;font-size:.85rem;display:none;}
+  .status.ok{background:rgba(34,197,94,.1);color:var(--success);border:1px solid rgba(34,197,94,.25);display:block;}
+  .status.err{background:rgba(239,68,68,.1);color:var(--error);border:1px solid rgba(239,68,68,.25);display:block;}
+
+  /* Verify result */
+  .verify-result{padding:16px 20px;border-radius:8px;margin-top:16px;text-align:center;display:none;}
+  .verify-result.valid{background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);display:block;}
+  .verify-result.invalid{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);display:block;}
+  .verify-icon{font-size:2rem;margin-bottom:6px;}
+  .verify-label{font-weight:700;font-size:.95rem;}
+  .verify-label.valid{color:var(--success);}
+  .verify-label.invalid{color:var(--error);}
+  .verify-sub{font-size:.8rem;color:var(--text-muted);margin-top:4px;}
+
+  /* Options row */
+  .opts-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px;}
+  @media(max-width:500px){.opts-row{grid-template-columns:1fr;}}
+
+  /* Key strength meter */
+  .key-meter{margin-top:6px;height:5px;border-radius:3px;background:var(--border);overflow:hidden;}
+  .key-meter-fill{height:100%;border-radius:3px;transition:width .3s,background .3s;}
+
+  details{margin-top:22px;padding:14px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:6px;font-size:.83rem;color:var(--text-muted);}
+  details summary{cursor:pointer;font-weight:600;color:var(--text);}
+  details p{margin-top:10px;line-height:1.6;}
+  code{background:rgba(255,255,255,.07);padding:1px 5px;border-radius:3px;font-family:var(--mono);}
+</style>
+</head>
+<body>
+<div style="max-width:760px;margin:0 auto;">
+  <h2>4b — HMAC Generator</h2>
+  <p class="subtitle">Hash-based Message Authentication Code · keyed hash · WebCrypto native</p>
+
+  <div class="card">
+    <div class="card-header">
+      <h3>HMAC</h3>
+      <span class="badge">✔ Secure</span>
+    </div>
+
+    <div class="mode-strip">
+      <button class="mode-btn active" id="tab-gen"    onclick="setMode('gen')">🔑 Generate HMAC</button>
+      <button class="mode-btn"        id="tab-verify" onclick="setMode('verify')">✅ Verify HMAC</button>
+    </div>
+
+    <!-- GENERATE PANEL -->
+    <div id="panel-gen" class="panel active">
+      <div class="opts-row">
+        <div class="fg" style="margin:0;">
+          <label>Hash Algorithm</label>
+          <select id="gen-algo">
+            <option value="SHA-256">HMAC-SHA-256 (256-bit output)</option>
+            <option value="SHA-384">HMAC-SHA-384 (384-bit output)</option>
+            <option value="SHA-512">HMAC-SHA-512 (512-bit output)</option>
+          </select>
+        </div>
+        <div class="fg" style="margin:0;">
+          <label>Output Encoding</label>
+          <select id="gen-enc">
+            <option value="hex">Hex (lowercase)</option>
+            <option value="HEX">Hex (UPPERCASE)</option>
+            <option value="b64">Base64</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="fg">
+        <label>Secret Key</label>
+        <input type="password" id="gen-key" placeholder="Secret key — keep this private"
+               oninput="updateKeyMeter(this.value,'gen-key-meter')" >
+        <button class="eye" onclick="toggleEye('gen-key',this)">👁</button>
+        <div class="key-meter"><div class="key-meter-fill" id="gen-key-meter" style="width:0%"></div></div>
+      </div>
+      <div class="fg">
+        <label>Message</label>
+        <textarea id="gen-msg" rows="4" placeholder="Enter the message to authenticate…"></textarea>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:0;">
+        <button class="btn" id="gen-btn" onclick="doGenerate()">
+          <span class="spinner"></span> Generate HMAC
+        </button>
+        <button class="btn btn-sm" onclick="genRandomKey()">🎲 Generate random key</button>
+      </div>
+      <div id="gen-status" class="status"></div>
+
+      <div class="fg" style="margin-top:16px;">
+        <label>HMAC Output</label>
+        <div class="out-box" id="gen-out"></div>
+        <div class="btn-row">
+          <button class="btn btn-sm" id="gen-copy" onclick="copyOut('gen-out','gen-copy')">Copy HMAC</button>
+          <button class="btn btn-sm" onclick="fillVerify()">→ Send to Verify tab</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- VERIFY PANEL -->
+    <div id="panel-verify" class="panel">
+      <div class="opts-row">
+        <div class="fg" style="margin:0;">
+          <label>Hash Algorithm</label>
+          <select id="ver-algo">
+            <option value="SHA-256">HMAC-SHA-256</option>
+            <option value="SHA-384">HMAC-SHA-384</option>
+            <option value="SHA-512">HMAC-SHA-512</option>
+          </select>
+        </div>
+        <div class="fg" style="margin:0;">
+          <label>Input Encoding of expected HMAC</label>
+          <select id="ver-enc">
+            <option value="hex">Hex</option>
+            <option value="b64">Base64</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="fg">
+        <label>Secret Key</label>
+        <input type="password" id="ver-key" placeholder="Same secret key used when generating">
+        <button class="eye" onclick="toggleEye('ver-key',this)">👁</button>
+      </div>
+      <div class="fg">
+        <label>Message</label>
+        <textarea id="ver-msg" rows="4" placeholder="The original message…"></textarea>
+      </div>
+      <div class="fg">
+        <label>Expected HMAC</label>
+        <input type="text" id="ver-hmac" placeholder="Paste hex or Base64 HMAC to compare against…"
+               style="font-family:var(--mono);font-size:.85rem;">
+      </div>
+      <button class="btn" id="ver-btn" onclick="doVerify()">
+        <span class="spinner"></span> Verify HMAC
+      </button>
+      <div id="ver-status" class="status"></div>
+
+      <div class="verify-result" id="ver-result">
+        <div class="verify-icon"  id="ver-icon"></div>
+        <div class="verify-label" id="ver-label"></div>
+        <div class="verify-sub"   id="ver-sub"></div>
+      </div>
+    </div>
+
+    <details>
+      <summary>How HMAC works</summary>
+      <p>
+        <strong>HMAC (Hash-based Message Authentication Code)</strong> combines a secret key with a message
+        to produce a short digest that proves both the message's <em>integrity</em> (it wasn't altered) and
+        its <em>authenticity</em> (it was produced by someone who holds the secret key).
+        The construction is <code>HMAC(K, m) = H((K ⊕ opad) ∥ H((K ⊕ ipad) ∥ m))</code>,
+        where H is the underlying hash (SHA-256, SHA-384, or SHA-512) and the key is XOR'd with inner/outer
+        padding constants. This double-hashing prevents length-extension attacks that would affect plain
+        <code>H(K ∥ m)</code>. Verification uses a <strong>constant-time comparison</strong> of the computed
+        HMAC against the expected one to prevent timing oracle attacks.
+      </p>
+    </details>
+  </div>
+</div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────────
+let _lastHmacHex = '';
+let _lastMsg     = '';
+let _lastKey     = '';
+let _lastAlgo    = 'SHA-256';
+
+// ── UI helpers ────────────────────────────────────────────────────────────────
+function setMode(m) {
+  document.getElementById('panel-gen').classList.toggle('active',    m === 'gen');
+  document.getElementById('panel-verify').classList.toggle('active', m === 'verify');
+  document.getElementById('tab-gen').classList.toggle('active',      m === 'gen');
+  document.getElementById('tab-verify').classList.toggle('active',   m === 'verify');
+}
+function toggleEye(id, btn) {
+  const el = document.getElementById(id);
+  el.type = el.type === 'password' ? 'text' : 'password';
+  btn.textContent = el.type === 'password' ? '👁' : '🙈';
+}
+function showStatus(id, msg, isErr) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.className = 'status ' + (isErr ? 'err' : 'ok');
+  setTimeout(() => { el.style.display = 'none'; }, 7000);
+}
+function setLoading(id, on) {
+  const b = document.getElementById(id);
+  b.disabled = on;
+  on ? b.classList.add('loading') : b.classList.remove('loading');
+}
+const _ct = {};
+function copyOut(outId, btnId) {
+  const text = (document.getElementById(outId).textContent || '').trim();
+  if (!text) return;
+  navigator.clipboard.writeText(text);
+  const btn = document.getElementById(btnId), orig = btn.textContent;
+  if (_ct[btnId]) clearInterval(_ct[btnId]);
+  let t = 30;
+  btn.textContent = `Clearing in ${t}s…`;
+  _ct[btnId] = setInterval(() => {
+    t--;
+    if (t <= 0) { clearInterval(_ct[btnId]); navigator.clipboard.writeText(''); btn.textContent = orig; }
+    else btn.textContent = `Clearing in ${t}s…`;
+  }, 1000);
+}
+
+// ── Key strength visual ───────────────────────────────────────────────────────
+function updateKeyMeter(val, meterId) {
+  const el   = document.getElementById(meterId);
+  const bits = val.length * 5; // rough heuristic
+  const pct  = Math.min(100, bits);
+  let   col  = '#ef4444';
+  if (pct >= 80)       col = '#22c55e';
+  else if (pct >= 50)  col = '#f59e0b';
+  el.style.width      = pct + '%';
+  el.style.background = col;
+}
+
+// ── Random key generator ──────────────────────────────────────────────────────
+function genRandomKey() {
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  const hex   = Array.from(bytes).map(b => b.toString(16).padStart(2,'0')).join('');
+  const inp   = document.getElementById('gen-key');
+  inp.value   = hex;
+  inp.type    = 'text'; // reveal it
+  document.querySelector('[onclick="toggleEye(\'gen-key\',this)"]').textContent = '🙈';
+  updateKeyMeter(hex, 'gen-key-meter');
+}
+
+// ── Encoding helpers ──────────────────────────────────────────────────────────
+function bufToHex(buf, upper) {
+  const h = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+  return upper ? h.toUpperCase() : h;
+}
+function bufToB64(buf) { return btoa(String.fromCharCode(...new Uint8Array(buf))); }
+
+function encodeOutput(buf, enc) {
+  if (enc === 'b64') return bufToB64(buf);
+  return bufToHex(buf, enc === 'HEX');
+}
+
+function decodeInput(str, enc) {
+  str = str.trim();
+  if (enc === 'b64') return Uint8Array.from(atob(str), c => c.charCodeAt(0)).buffer;
+  str = str.replace(/\s/g,'');
+  const bytes = new Uint8Array(str.length / 2);
+  for (let i = 0; i < bytes.length; i++) bytes[i] = parseInt(str.substr(i*2,2),16);
+  return bytes.buffer;
+}
+
+// Constant-time buffer comparison (prevents timing oracle)
+function constantTimeEqual(a, b) {
+  const ua = new Uint8Array(a), ub = new Uint8Array(b);
+  if (ua.length !== ub.length) return false;
+  let diff = 0;
+  for (let i = 0; i < ua.length; i++) diff |= ua[i] ^ ub[i];
+  return diff === 0;
+}
+
+// ── HMAC compute ──────────────────────────────────────────────────────────────
+async function computeHmac(algo, keyStr, msgStr) {
+  const keyBytes = new TextEncoder().encode(keyStr);
+  const msgBytes = new TextEncoder().encode(msgStr);
+
+  const cryptoKey = await crypto.subtle.importKey(
+    'raw', keyBytes,
+    { name: 'HMAC', hash: algo },
+    false,
+    ['sign', 'verify']
+  );
+  const sig = await crypto.subtle.sign('HMAC', cryptoKey, msgBytes);
+  return sig;
+}
+
+// ── Generate ──────────────────────────────────────────────────────────────────
+async function doGenerate() {
+  const key  = document.getElementById('gen-key').value;
+  const msg  = document.getElementById('gen-msg').value;
+  const algo = document.getElementById('gen-algo').value;
+  const enc  = document.getElementById('gen-enc').value;
+
+  if (!key) return showStatus('gen-status', 'Please enter a secret key.', true);
+  if (!msg) return showStatus('gen-status', 'Please enter a message.', true);
+
+  setLoading('gen-btn', true);
+  document.getElementById('gen-out').textContent = '';
+  try {
+    const sig = await computeHmac(algo, key, msg);
+    const out = encodeOutput(sig, enc);
+
+    document.getElementById('gen-out').textContent = out;
+    _lastHmacHex = bufToHex(sig, false);
+    _lastMsg     = msg;
+    _lastKey     = key;
+    _lastAlgo    = algo;
+
+    showStatus('gen-status', `✔ HMAC-${algo.replace('SHA-','')} generated (${new Uint8Array(sig).length * 8} bits).`, false);
+  } catch(e) {
+    showStatus('gen-status', 'HMAC generation failed: ' + e.message, true);
+  } finally {
+    setLoading('gen-btn', false);
+  }
+}
+
+// ── Fill verify tab ───────────────────────────────────────────────────────────
+function fillVerify() {
+  if (!_lastHmacHex) return;
+  document.getElementById('ver-key').value   = _lastKey;
+  document.getElementById('ver-msg').value   = _lastMsg;
+  document.getElementById('ver-hmac').value  = _lastHmacHex;
+  document.getElementById('ver-algo').value  = _lastAlgo;
+  document.getElementById('ver-enc').value   = 'hex';
+  setMode('verify');
+}
+
+// ── Verify ────────────────────────────────────────────────────────────────────
+async function doVerify() {
+  const key      = document.getElementById('ver-key').value;
+  const msg      = document.getElementById('ver-msg').value;
+  const expected = document.getElementById('ver-hmac').value.trim();
+  const algo     = document.getElementById('ver-algo').value;
+  const enc      = document.getElementById('ver-enc').value;
+
+  if (!key)      return showStatus('ver-status', 'Please enter the secret key.', true);
+  if (!msg)      return showStatus('ver-status', 'Please enter the message.', true);
+  if (!expected) return showStatus('ver-status', 'Please paste the expected HMAC.', true);
+
+  setLoading('ver-btn', true);
+  document.getElementById('ver-result').style.display = 'none';
+  try {
+    const computed    = await computeHmac(algo, key, msg);
+    let   expectedBuf;
+    try   { expectedBuf = decodeInput(expected, enc); }
+    catch (_) { throw new Error('HMAC value could not be decoded — check the encoding format.'); }
+
+    const match = constantTimeEqual(computed, expectedBuf);
+
+    const icon  = document.getElementById('ver-icon');
+    const label = document.getElementById('ver-label');
+    const sub   = document.getElementById('ver-sub');
+    const res   = document.getElementById('ver-result');
+
+    if (match) {
+      res.className    = 'verify-result valid';
+      icon.textContent = '✅';
+      label.className  = 'verify-label valid';
+      label.textContent= 'HMAC Valid';
+      sub.textContent  = 'The message is authentic and unmodified. The HMAC matches the expected value.';
+    } else {
+      res.className    = 'verify-result invalid';
+      icon.textContent = '❌';
+      label.className  = 'verify-label invalid';
+      label.textContent= 'HMAC Invalid';
+      sub.textContent  = 'The HMAC does not match. The message may have been altered, or the key is incorrect.';
+    }
+    showStatus('ver-status', match ? '✔ HMAC verified.' : '✖ HMAC mismatch.', !match);
+  } catch(e) {
+    showStatus('ver-status', e.message, true);
+  } finally {
+    setLoading('ver-btn', false);
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aegis · 5a — Password Generator</title>
+<style>
+  :root {
+    --bg:#0f1115; --panel:#1a1d24; --border:#2a2e39;
+    --primary:#3b82f6; --primary-hover:#2563eb;
+    --text:#e2e8f0; --text-muted:#94a3b8;
+    --error:#ef4444; --success:#22c55e; --warning:#f59e0b;
+    --mono:'Fira Code','Courier New',monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',system-ui,sans-serif;}
+  body{background:var(--bg);color:var(--text);padding:30px;min-height:100vh;}
+  h2{font-size:1.4rem;margin-bottom:6px;}
+  .subtitle{color:var(--text-muted);font-size:.85rem;margin-bottom:24px;}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:24px;max-width:760px;margin:0 auto 28px;}
+  .card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px;}
+  .card-header h3{font-size:1.1rem;margin:0;}
+  .badge{padding:3px 10px;border-radius:20px;font-size:.7rem;font-weight:700;text-transform:uppercase;background:rgba(34,197,94,.15);color:var(--success);}
+  .fg{margin-bottom:18px;}
+  label{display:block;margin-bottom:7px;font-size:.85rem;color:var(--text-muted);font-weight:500;}
+  select{width:auto;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:.88rem;cursor:pointer;}
+  select:focus{outline:none;border-color:var(--primary);}
+  .slider-row{display:flex;align-items:center;gap:12px;}
+  .slider-row input[type=range]{flex:1;accent-color:var(--primary);cursor:pointer;height:6px;}
+  .slider-cap{font-size:.78rem;color:var(--text-muted);}
+  .slider-num{font-family:var(--mono);font-size:1.1rem;font-weight:700;color:var(--primary);min-width:38px;text-align:right;}
+  .toggle-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;margin-bottom:18px;}
+  .tog{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;cursor:pointer;transition:.15s;user-select:none;}
+  .tog:hover{border-color:var(--primary);}
+  .tog.on{border-color:var(--primary);background:rgba(59,130,246,.07);}
+  .tog input{accent-color:var(--primary);width:15px;height:15px;cursor:pointer;flex-shrink:0;}
+  .tog-name{font-size:.84rem;font-weight:600;}
+  .tog-sample{font-family:var(--mono);font-size:.7rem;color:var(--text-muted);margin-top:2px;}
+  .stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px;}
+  @media(max-width:460px){.stats-grid{grid-template-columns:1fr;}}
+  .stat{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px 14px;}
+  .stat-lbl{font-size:.72rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;}
+  .stat-num{font-size:1.4rem;font-weight:700;font-family:var(--mono);}
+  .stat-sub{font-size:.75rem;color:var(--text-muted);margin-top:2px;}
+  .bar-bg{height:5px;border-radius:3px;background:var(--border);margin-top:7px;overflow:hidden;}
+  .bar-fill{height:100%;border-radius:3px;transition:width .3s,background .3s;}
+  .gen-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px;}
+  .gen-row label{margin:0;white-space:nowrap;font-size:.85rem;}
+  .btn{display:inline-flex;align-items:center;gap:7px;padding:10px 18px;background:var(--primary);color:#fff;border:none;border-radius:6px;font-size:.9rem;font-weight:600;cursor:pointer;transition:background .2s;}
+  .btn:hover{background:var(--primary-hover);}
+  .btn-sm{background:transparent;border:1px solid var(--border);color:var(--text);padding:7px 13px;font-size:.82rem;}
+  .btn-sm:hover{background:var(--border);}
+  .btn-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}
+  .pw-list{display:flex;flex-direction:column;gap:7px;}
+  .pw-item{display:flex;align-items:center;gap:10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px 14px;}
+  .pw-text{font-family:var(--mono);font-size:.9rem;flex:1;word-break:break-all;letter-spacing:.03em;}
+  .pw-copy{background:transparent;border:1px solid var(--border);color:var(--text-muted);padding:5px 10px;border-radius:4px;font-size:.75rem;cursor:pointer;transition:.15s;white-space:nowrap;flex-shrink:0;}
+  .pw-copy:hover{border-color:var(--primary);color:var(--primary);}
+  details{margin-top:22px;padding:14px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:6px;font-size:.83rem;color:var(--text-muted);}
+  details summary{cursor:pointer;font-weight:600;color:var(--text);}
+  details p{margin-top:10px;line-height:1.6;}
+  code{background:rgba(255,255,255,.07);padding:1px 5px;border-radius:3px;font-family:var(--mono);}
+</style>
+</head>
+<body>
+<div style="max-width:760px;margin:0 auto;">
+  <h2>5a — Secure Password Generator</h2>
+  <p class="subtitle">Cryptographically random · <code style="background:rgba(255,255,255,.07);padding:1px 6px;border-radius:3px;font-family:monospace">crypto.getRandomValues</code> · rejection sampling · live entropy</p>
+
+  <div class="card">
+    <div class="card-header">
+      <h3>Generator</h3>
+      <span class="badge">✔ CSPRNG</span>
+    </div>
+
+    <!-- Length -->
+    <div class="fg">
+      <label>Length — <strong id="len-lbl" style="color:var(--primary)">20</strong> characters</label>
+      <div class="slider-row">
+        <span class="slider-cap">8</span>
+        <input type="range" id="len" min="8" max="128" value="20" oninput="onLen()">
+        <span class="slider-cap">128</span>
+        <span class="slider-num" id="len-num">20</span>
+      </div>
+    </div>
+
+    <!-- Charsets -->
+    <div class="fg">
+      <label>Character Sets</label>
+      <div class="toggle-grid">
+        <label class="tog on" id="tog-upper">
+          <input type="checkbox" id="cb-upper" checked onchange="onCb('upper')">
+          <div><div class="tog-name">Uppercase</div><div class="tog-sample">A–Z (26)</div></div>
+        </label>
+        <label class="tog on" id="tog-lower">
+          <input type="checkbox" id="cb-lower" checked onchange="onCb('lower')">
+          <div><div class="tog-name">Lowercase</div><div class="tog-sample">a–z (26)</div></div>
+        </label>
+        <label class="tog on" id="tog-digits">
+          <input type="checkbox" id="cb-digits" checked onchange="onCb('digits')">
+          <div><div class="tog-name">Digits</div><div class="tog-sample">0–9 (10)</div></div>
+        </label>
+        <label class="tog on" id="tog-symbols">
+          <input type="checkbox" id="cb-symbols" checked onchange="onCb('symbols')">
+          <div><div class="tog-name">Symbols</div><div class="tog-sample">!@#$%^&amp;* … (28)</div></div>
+        </label>
+        <label class="tog" id="tog-noambig">
+          <input type="checkbox" id="cb-noambig" onchange="onCb('noambig')">
+          <div><div class="tog-name">Exclude Ambiguous</div><div class="tog-sample">removes 0 O l 1 I |</div></div>
+        </label>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-grid">
+      <div class="stat">
+        <div class="stat-lbl">Entropy</div>
+        <div class="stat-num" id="ent-num" style="color:var(--primary)">—</div>
+        <div class="stat-sub" id="ent-sub">bits</div>
+      </div>
+      <div class="stat">
+        <div class="stat-lbl">Strength</div>
+        <div class="stat-num" id="str-num">—</div>
+        <div class="stat-sub" id="str-sub">—</div>
+        <div class="bar-bg"><div class="bar-fill" id="str-bar" style="width:0%"></div></div>
+      </div>
+    </div>
+
+    <!-- Generate row -->
+    <div class="gen-row">
+      <label>Generate</label>
+      <select id="count">
+        <option value="1">1 password</option>
+        <option value="5" selected>5 passwords</option>
+        <option value="10">10 passwords</option>
+        <option value="20">20 passwords</option>
+        <option value="50">50 passwords</option>
+      </select>
+      <button class="btn" onclick="generateAll()">🎲 Generate</button>
+    </div>
+
+    <div class="pw-list" id="pw-list"></div>
+
+    <div class="btn-row">
+      <button class="btn btn-sm" onclick="copyAll()">Copy All</button>
+      <button class="btn btn-sm" onclick="downloadAll()">⬇ Download .txt</button>
+    </div>
+
+    <details>
+      <summary>How entropy is calculated</summary>
+      <p>
+        Entropy = <code>log₂(poolSize) × length</code> bits, where <em>poolSize</em> is the total number
+        of unique characters in your selected sets. Each character chosen at random from a pool of N
+        contributes <code>log₂(N)</code> bits of uncertainty to an attacker.
+        All characters are selected using <code>crypto.getRandomValues</code> with
+        <strong>rejection sampling</strong>: bytes outside an even multiple of the pool size are
+        discarded and resampled, eliminating modulo bias that would make some characters slightly
+        more probable than others.
+      </p>
+    </details>
+  </div>
+</div>
+
+<script>
+const CHARS = {
+  upper:   'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+  lower:   'abcdefghijklmnopqrstuvwxyz',
+  digits:  '0123456789',
+  symbols: '!@#$%^&*()-_=+[]{}|;:,.<>?/~`',
+};
+const AMBIG = new Set([...'0Ol1I|`']);
+
+function getPool() {
+  let p = '';
+  if (document.getElementById('cb-upper').checked)  p += CHARS.upper;
+  if (document.getElementById('cb-lower').checked)  p += CHARS.lower;
+  if (document.getElementById('cb-digits').checked) p += CHARS.digits;
+  if (document.getElementById('cb-symbols').checked)p += CHARS.symbols;
+  if (document.getElementById('cb-noambig').checked) p = [...p].filter(c => !AMBIG.has(c)).join('');
+  return p;
+}
+
+function entropy(len, pool) {
+  return pool > 0 ? +(Math.log2(pool) * len).toFixed(1) : 0;
+}
+
+const STR = [
+  { min:0,   max:27,  lbl:'Very Weak',  col:'#ef4444', pct:8  },
+  { min:28,  max:35,  lbl:'Weak',       col:'#f97316', pct:22 },
+  { min:36,  max:59,  lbl:'Fair',       col:'#f59e0b', pct:42 },
+  { min:60,  max:79,  lbl:'Good',       col:'#84cc16', pct:62 },
+  { min:80,  max:99,  lbl:'Strong',     col:'#22c55e', pct:78 },
+  { min:100, max:127, lbl:'Very Strong',col:'#10b981', pct:90 },
+  { min:128, max:Infinity, lbl:'Excellent', col:'#06b6d4', pct:100 },
+];
+function strInfo(bits) { return STR.find(s => bits >= s.min && bits <= s.max) || STR[0]; }
+
+function refreshStats() {
+  const len  = +document.getElementById('len').value;
+  const pool = getPool();
+  const bits = entropy(len, pool.length);
+  const s    = strInfo(bits);
+  document.getElementById('ent-num').textContent = bits;
+  document.getElementById('ent-sub').textContent = `bits of entropy · pool: ${pool.length} chars`;
+  document.getElementById('str-num').textContent = s.lbl;
+  document.getElementById('str-num').style.color = s.col;
+  document.getElementById('str-sub').textContent = `${bits} bits`;
+  document.getElementById('str-bar').style.width      = s.pct + '%';
+  document.getElementById('str-bar').style.background = s.col;
+}
+
+function onLen() {
+  const v = document.getElementById('len').value;
+  document.getElementById('len-lbl').textContent = v;
+  document.getElementById('len-num').textContent = v;
+  refreshStats();
+}
+
+function onCb(name) {
+  // Prevent deselecting the last active charset
+  const keys = ['upper','lower','digits','symbols'];
+  const active = keys.filter(k => document.getElementById('cb-' + k).checked);
+  const cb = document.getElementById('cb-' + name);
+  if (!cb.checked && active.length === 0) { cb.checked = true; return; }
+  document.getElementById('tog-' + name).classList.toggle('on', cb.checked);
+  refreshStats();
+}
+
+// Rejection sampling — avoids modulo bias
+function randIndex(max) {
+  const limit = 256 - (256 % max);
+  const b = new Uint8Array(1);
+  let v;
+  do { crypto.getRandomValues(b); v = b[0]; } while (v >= limit);
+  return v % max;
+}
+
+function makePassword(len, pool) {
+  if (!pool) return '';
+  let s = '';
+  for (let i = 0; i < len; i++) s += pool[randIndex(pool.length)];
+  return s;
+}
+
+function generateAll() {
+  const len   = +document.getElementById('len').value;
+  const pool  = getPool();
+  const count = +document.getElementById('count').value;
+  if (!pool) return;
+
+  const list = document.getElementById('pw-list');
+  list.innerHTML = '';
+
+  for (let i = 0; i < count; i++) {
+    const pw   = makePassword(len, pool);
+    const div  = document.createElement('div');
+    div.className = 'pw-item';
+    div.innerHTML = `<span class="pw-text" id="pw${i}">${pw}</span>
+      <button class="pw-copy" id="cpbtn${i}" onclick="cpPw(${i})">Copy</button>`;
+    list.appendChild(div);
+  }
+}
+
+const _t = {};
+function cpPw(i) {
+  const text = document.getElementById('pw' + i)?.textContent || '';
+  if (!text) return;
+  navigator.clipboard.writeText(text);
+  const btn = document.getElementById('cpbtn' + i), orig = btn.textContent;
+  if (_t[i]) clearInterval(_t[i]);
+  let t = 30; btn.textContent = t + 's';
+  _t[i] = setInterval(() => {
+    t--;
+    if (t <= 0) { clearInterval(_t[i]); navigator.clipboard.writeText(''); btn.textContent = orig; }
+    else btn.textContent = t + 's';
+  }, 1000);
+}
+
+function copyAll() {
+  const all = [...document.querySelectorAll('.pw-text')].map(e => e.textContent).join('\n');
+  if (all) navigator.clipboard.writeText(all);
+}
+
+function downloadAll() {
+  const all = [...document.querySelectorAll('.pw-text')].map(e => e.textContent).join('\n');
+  if (!all) return;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([all], {type:'text/plain'}));
+  a.download = 'passwords.txt'; a.click();
+}
+
+// Init
+refreshStats();
+generateAll();
+</script>
+</body>
+</html>

@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aegis · 7a — One-Time Pad</title>
+<style>
+  :root {
+    --bg:#0f1115; --panel:#1a1d24; --border:#2a2e39;
+    --primary:#3b82f6; --primary-hover:#2563eb;
+    --text:#e2e8f0; --text-muted:#94a3b8;
+    --error:#ef4444; --success:#22c55e; --warning:#f59e0b;
+    --mono:'Fira Code','Courier New',monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',system-ui,sans-serif;}
+  body{background:var(--bg);color:var(--text);padding:30px;min-height:100vh;}
+  h2{font-size:1.4rem;margin-bottom:6px;}
+  .subtitle{color:var(--text-muted);font-size:.85rem;margin-bottom:24px;}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:24px;max-width:760px;margin:0 auto 28px;}
+  .card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px;}
+  .card-header h3{font-size:1.1rem;margin:0;}
+  .badge{padding:3px 10px;border-radius:20px;font-size:.7rem;font-weight:700;text-transform:uppercase;}
+  .badge.secure{background:rgba(34,197,94,.15);color:var(--success);}
+  .badge.warn{background:rgba(245,158,11,.15);color:var(--warning);}
+  .mode-strip{display:flex;background:#15181e;border-radius:6px;border:1px solid var(--border);overflow:hidden;margin-bottom:22px;}
+  .mode-btn{flex:1;padding:10px;text-align:center;cursor:pointer;color:var(--text-muted);font-size:.85rem;font-weight:600;text-transform:uppercase;transition:.2s;border:none;background:none;}
+  .mode-btn.active{background:var(--panel);color:var(--primary);border-bottom:2px solid var(--primary);}
+  .panel{display:none;} .panel.active{display:block;}
+  .fg{margin-bottom:18px;position:relative;}
+  label{display:block;margin-bottom:7px;font-size:.85rem;color:var(--text-muted);font-weight:500;}
+  textarea{width:100%;padding:11px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:.9rem;resize:vertical;min-height:110px;}
+  textarea:focus{outline:none;border-color:var(--primary);}
+  .drop-zone{border:2px dashed var(--border);border-radius:8px;padding:28px 20px;text-align:center;cursor:pointer;transition:.2s;background:rgba(255,255,255,.01);}
+  .drop-zone:hover,.drop-zone.over{border-color:var(--primary);background:rgba(59,130,246,.06);}
+  .drop-zone p{color:var(--text-muted);font-size:.88rem;pointer-events:none;}
+  .drop-zone input{display:none;}
+  .file-badge{display:inline-flex;align-items:center;gap:8px;margin-top:10px;padding:7px 14px;background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.3);border-radius:6px;font-size:.8rem;color:var(--primary);font-family:var(--mono);}
+  .out-box{font-family:var(--mono);font-size:.8rem;background:var(--bg);border:1px solid var(--border);padding:12px;border-radius:6px;word-break:break-all;min-height:50px;white-space:pre-wrap;}
+  .btn{display:inline-flex;align-items:center;gap:7px;padding:10px 18px;background:var(--primary);color:#fff;border:none;border-radius:6px;font-size:.9rem;font-weight:600;cursor:pointer;transition:background .2s;}
+  .btn:hover{background:var(--primary-hover);}
+  .btn:disabled{background:var(--border);color:var(--text-muted);cursor:not-allowed;}
+  .btn-sm{background:transparent;border:1px solid var(--border);color:var(--text);padding:7px 13px;font-size:.82rem;}
+  .btn-sm:hover{background:var(--border);}
+  .btn-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;}
+  .spinner{width:15px;height:15px;border:2px solid rgba(255,255,255,.3);border-radius:50%;border-top-color:#fff;animation:spin .7s linear infinite;display:none;}
+  .btn.loading .spinner{display:inline-block;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .status{margin-top:12px;padding:10px 14px;border-radius:6px;font-size:.85rem;display:none;}
+  .status.ok{background:rgba(34,197,94,.1);color:var(--success);border:1px solid rgba(34,197,94,.25);display:block;}
+  .status.err{background:rgba(239,68,68,.1);color:var(--error);border:1px solid rgba(239,68,68,.25);display:block;}
+  /* two-col download */
+  .dl-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px;}
+  @media(max-width:480px){.dl-grid{grid-template-columns:1fr;}}
+  .dl-box{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:14px;text-align:center;}
+  .dl-icon{font-size:2rem;margin-bottom:6px;}
+  .dl-title{font-size:.85rem;font-weight:700;margin-bottom:4px;}
+  .dl-sub{font-size:.75rem;color:var(--text-muted);margin-bottom:10px;}
+  .dl-size{font-family:var(--mono);font-size:.75rem;color:var(--primary);margin-bottom:10px;}
+  /* stats */
+  .stat-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;}
+  .stat-pill{padding:5px 12px;background:var(--bg);border:1px solid var(--border);border-radius:20px;font-size:.78rem;}
+  .stat-pill span{font-weight:700;color:var(--primary);}
+  .notice{padding:12px 14px;border-radius:6px;font-size:.82rem;background:rgba(245,158,11,.07);color:var(--warning);border:1px solid rgba(245,158,11,.2);margin-bottom:18px;line-height:1.5;}
+  details{margin-top:22px;padding:14px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:6px;font-size:.83rem;color:var(--text-muted);}
+  details summary{cursor:pointer;font-weight:600;color:var(--text);}
+  details p{margin-top:10px;line-height:1.6;}
+  code{background:rgba(255,255,255,.07);padding:1px 5px;border-radius:3px;font-family:var(--mono);}
+</style>
+</head>
+<body>
+<div style="max-width:760px;margin:0 auto;">
+  <h2>7a — One-Time Pad</h2>
+  <p class="subtitle">Theoretically unbreakable · random keyfile = message length · XOR cipher · CSPRNG</p>
+
+  <div class="card">
+    <div class="card-header">
+      <h3>One-Time Pad</h3>
+      <span class="badge secure">Information-Theoretic Security</span>
+    </div>
+
+    <div class="notice">
+      ⚠️ A true OTP is only secure if the keyfile is: (1) truly random, (2) at least as long as the message,
+      (3) <strong>never reused</strong>, and (4) kept completely secret. Reusing a key catastrophically
+      breaks security (known as the "two-time pad" attack). Use the keyfile only once, then destroy it.
+    </div>
+
+    <div class="mode-strip">
+      <button class="mode-btn active" id="tab-enc" onclick="setMode('enc')">🔒 Encrypt</button>
+      <button class="mode-btn"        id="tab-dec" onclick="setMode('dec')">🔓 Decrypt</button>
+    </div>
+
+    <!-- ── ENCRYPT ─────────────────────────────────── -->
+    <div id="panel-enc" class="panel active">
+      <div class="fg">
+        <label>Message to encrypt</label>
+        <textarea id="enc-msg" placeholder="Enter your secret message…" oninput="updateEncStats()"></textarea>
+      </div>
+
+      <div class="stat-row" id="enc-stats"></div>
+
+      <button class="btn" id="enc-btn" onclick="doEncrypt()">
+        <span class="spinner"></span> Generate Keyfile &amp; Encrypt
+      </button>
+      <div id="enc-status" class="status"></div>
+
+      <!-- Download grid -->
+      <div class="dl-grid" id="enc-dl-grid" style="display:none;">
+        <div class="dl-box">
+          <div class="dl-icon">🔑</div>
+          <div class="dl-title">Keyfile</div>
+          <div class="dl-sub">Keep this secret · use once · destroy after</div>
+          <div class="dl-size" id="enc-key-size"></div>
+          <button class="btn btn-sm" onclick="downloadFile('keyfile','key.otp','application/octet-stream')">⬇ Download keyfile</button>
+        </div>
+        <div class="dl-box">
+          <div class="dl-icon">🔐</div>
+          <div class="dl-title">Ciphertext</div>
+          <div class="dl-sub">Safe to transmit · meaningless without key</div>
+          <div class="dl-size" id="enc-ct-size"></div>
+          <button class="btn btn-sm" onclick="downloadFile('ciphertext','ciphertext.otp','application/octet-stream')">⬇ Download ciphertext</button>
+        </div>
+      </div>
+
+      <!-- Preview hex -->
+      <div id="enc-preview-wrap" style="display:none;margin-top:16px;">
+        <label>Ciphertext preview (hex)</label>
+        <div class="out-box" id="enc-ct-preview"></div>
+      </div>
+    </div>
+
+    <!-- ── DECRYPT ────────────────────────────────── -->
+    <div id="panel-dec" class="panel">
+      <div class="fg">
+        <label>Ciphertext file (.otp)</label>
+        <div class="drop-zone" id="ct-drop"
+             ondragover="onDragOver(event,'ct-drop')" ondragleave="onDragLeave('ct-drop')"
+             ondrop="onDrop(event,'ct-file','ct-badge')">
+          <p>Drop ciphertext.otp here or click to browse</p>
+          <input type="file" id="ct-file" onchange="onFileSelect(this,'ct-badge')" onclick="event.stopPropagation()">
+          <div id="ct-badge"></div>
+        </div>
+      </div>
+      <div class="fg">
+        <label>Keyfile (.otp)</label>
+        <div class="drop-zone" id="kf-drop"
+             ondragover="onDragOver(event,'kf-drop')" ondragleave="onDragLeave('kf-drop')"
+             ondrop="onDrop(event,'kf-file','kf-badge')">
+          <p>Drop key.otp here or click to browse</p>
+          <input type="file" id="kf-file" onchange="onFileSelect(this,'kf-badge')" onclick="event.stopPropagation()">
+          <div id="kf-badge"></div>
+        </div>
+      </div>
+
+      <button class="btn" id="dec-btn" onclick="doDecrypt()">
+        <span class="spinner"></span> Decrypt
+      </button>
+      <div id="dec-status" class="status"></div>
+
+      <div class="fg" id="dec-out-wrap" style="display:none;margin-top:16px;">
+        <label>Decrypted Message</label>
+        <div class="out-box" id="dec-out"></div>
+        <div class="btn-row">
+          <button class="btn btn-sm" id="dec-copy" onclick="copyText(document.getElementById('dec-out').textContent,'dec-copy')">Copy</button>
+        </div>
+      </div>
+    </div>
+
+    <details>
+      <summary>How the One-Time Pad works</summary>
+      <p>
+        The OTP is the only known encryption scheme with <strong>information-theoretic security</strong> —
+        it is mathematically proven to be unbreakable when used correctly, because every possible
+        plaintext of the correct length is equally likely given the ciphertext alone.
+        Encryption: <code>ciphertext[i] = plaintext[i] XOR key[i]</code>.
+        Decryption: <code>plaintext[i] = ciphertext[i] XOR key[i]</code> (XOR is its own inverse).
+        The keyfile is generated using <code>crypto.getRandomValues</code> — a CSPRNG — ensuring the
+        key is truly unpredictable. Security collapses entirely if the key is reused — given two
+        ciphertexts encrypted with the same key, XORing them cancels the key and reveals a
+        combination of the two plaintexts.
+      </p>
+    </details>
+  </div>
+</div>
+
+<script>
+// ── State: hold generated blobs in memory ──────────────────────────────────────
+const _blobs = { keyfile: null, ciphertext: null };
+
+// ── UI helpers ─────────────────────────────────────────────────────────────────
+function setMode(m) {
+  document.getElementById('panel-enc').classList.toggle('active', m === 'enc');
+  document.getElementById('panel-dec').classList.toggle('active', m === 'dec');
+  document.getElementById('tab-enc').classList.toggle('active',   m === 'enc');
+  document.getElementById('tab-dec').classList.toggle('active',   m === 'dec');
+}
+function showStatus(id, msg, isErr) {
+  const el = document.getElementById(id);
+  el.textContent = msg; el.className = 'status ' + (isErr ? 'err' : 'ok');
+  setTimeout(() => { el.style.display = 'none'; }, 7000);
+}
+function setLoading(id, on) {
+  const b = document.getElementById(id); b.disabled = on;
+  on ? b.classList.add('loading') : b.classList.remove('loading');
+}
+const _ct = {};
+function copyText(text, btnId) {
+  text = (text||'').trim(); if (!text) return;
+  navigator.clipboard.writeText(text);
+  const btn = document.getElementById(btnId), orig = btn.textContent;
+  if (_ct[btnId]) clearInterval(_ct[btnId]);
+  let t = 30; btn.textContent = t + 's';
+  _ct[btnId] = setInterval(() => {
+    t--;
+    if (t <= 0) { clearInterval(_ct[btnId]); navigator.clipboard.writeText(''); btn.textContent = orig; }
+    else btn.textContent = t + 's';
+  }, 1000);
+}
+function fmtSize(n) {
+  if (n < 1024) return n + ' B';
+  if (n < 1048576) return (n/1024).toFixed(1) + ' KB';
+  return (n/1048576).toFixed(2) + ' MB';
+}
+function bufToHex(buf) {
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join(' ');
+}
+
+// File drop helpers
+function onDragOver(e, id) { e.preventDefault(); document.getElementById(id).classList.add('over'); }
+function onDragLeave(id)    { document.getElementById(id).classList.remove('over'); }
+function onDrop(e, inputId, badgeId) {
+  e.preventDefault(); onDragLeave(e.currentTarget.id);
+  const f = e.dataTransfer.files[0]; if (!f) return;
+  try { const dt = new DataTransfer(); dt.items.add(f); document.getElementById(inputId).files = dt.files; } catch(_) {}
+  showBadge(f, badgeId);
+}
+function onFileSelect(input, badgeId) { if (input.files[0]) showBadge(input.files[0], badgeId); }
+function showBadge(f, badgeId) {
+  document.getElementById(badgeId).innerHTML =
+    `<div class="file-badge">📄 ${f.name} · ${fmtSize(f.size)}</div>`;
+}
+// Click-to-browse for drop zones
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('ct-drop').addEventListener('click', () => document.getElementById('ct-file').click());
+  document.getElementById('kf-drop').addEventListener('click', () => document.getElementById('kf-file').click());
+});
+
+// Stat pills under textarea
+function updateEncStats() {
+  const msg  = document.getElementById('enc-msg').value;
+  const bytes = new TextEncoder().encode(msg).length;
+  document.getElementById('enc-stats').innerHTML = msg
+    ? `<span class="stat-pill">Chars: <span>${msg.length}</span></span>
+       <span class="stat-pill">Bytes (UTF-8): <span>${bytes}</span></span>
+       <span class="stat-pill">Key size required: <span>${fmtSize(bytes)}</span></span>`
+    : '';
+}
+
+// Download helper
+function downloadFile(blobKey, filename, mime) {
+  const data = _blobs[blobKey];
+  if (!data) return;
+  const url = URL.createObjectURL(new Blob([data], { type: mime }));
+  const a = document.createElement('a'); a.href = url; a.download = filename; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
+// ── ENCRYPT ────────────────────────────────────────────────────────────────────
+function doEncrypt() {
+  const msg = document.getElementById('enc-msg').value;
+  if (!msg) return showStatus('enc-status', 'Please enter a message.', true);
+
+  setLoading('enc-btn', true);
+  try {
+    const plainBytes = new TextEncoder().encode(msg);
+    const keyBytes   = crypto.getRandomValues(new Uint8Array(plainBytes.length));
+    const ctBytes    = new Uint8Array(plainBytes.length);
+
+    // XOR encrypt
+    for (let i = 0; i < plainBytes.length; i++) ctBytes[i] = plainBytes[i] ^ keyBytes[i];
+
+    _blobs.keyfile    = keyBytes;
+    _blobs.ciphertext = ctBytes;
+
+    // Update sizes
+    document.getElementById('enc-key-size').textContent  = fmtSize(keyBytes.length);
+    document.getElementById('enc-ct-size').textContent   = fmtSize(ctBytes.length);
+    document.getElementById('enc-dl-grid').style.display = 'grid';
+
+    // Preview (first 64 bytes of ciphertext as hex)
+    const preview = bufToHex(ctBytes.slice(0, 64).buffer);
+    document.getElementById('enc-ct-preview').textContent = preview + (ctBytes.length > 64 ? '\n…' : '');
+    document.getElementById('enc-preview-wrap').style.display = 'block';
+
+    showStatus('enc-status', `✔ Encrypted ${plainBytes.length} bytes. Download both files — keep keyfile secret!`, false);
+  } catch (e) {
+    showStatus('enc-status', 'Encryption error: ' + e.message, true);
+  } finally {
+    setLoading('enc-btn', false);
+  }
+}
+
+// ── DECRYPT ────────────────────────────────────────────────────────────────────
+async function doDecrypt() {
+  const ctFile = document.getElementById('ct-file').files[0];
+  const kfFile = document.getElementById('kf-file').files[0];
+  if (!ctFile) return showStatus('dec-status', 'Please provide the ciphertext file.', true);
+  if (!kfFile) return showStatus('dec-status', 'Please provide the keyfile.', true);
+
+  setLoading('dec-btn', true);
+  document.getElementById('dec-out-wrap').style.display = 'none';
+  try {
+    const [ctBuf, kfBuf] = await Promise.all([ctFile.arrayBuffer(), kfFile.arrayBuffer()]);
+    const ctBytes = new Uint8Array(ctBuf);
+    const kfBytes = new Uint8Array(kfBuf);
+
+    if (ctBytes.length !== kfBytes.length)
+      throw new Error(`Length mismatch: ciphertext is ${ctBytes.length} bytes but keyfile is ${kfBytes.length} bytes. They must be identical in length.`);
+
+    const plainBytes = new Uint8Array(ctBytes.length);
+    for (let i = 0; i < ctBytes.length; i++) plainBytes[i] = ctBytes[i] ^ kfBytes[i];
+
+    const plaintext = new TextDecoder().decode(plainBytes);
+    document.getElementById('dec-out').textContent = plaintext;
+    document.getElementById('dec-out-wrap').style.display = 'block';
+    showStatus('dec-status', `✔ Decrypted ${plainBytes.length} bytes successfully.`, false);
+  } catch (e) {
+    showStatus('dec-status', e.message, true);
+  } finally {
+    setLoading('dec-btn', false);
+  }
+}
+</script>
+</body>
+</html>

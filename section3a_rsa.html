@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aegis · 3a — RSA-4096</title>
+<style>
+  :root {
+    --bg:#0f1115; --panel:#1a1d24; --border:#2a2e39;
+    --primary:#3b82f6; --primary-hover:#2563eb;
+    --text:#e2e8f0; --text-muted:#94a3b8;
+    --error:#ef4444; --success:#22c55e; --warning:#f59e0b;
+    --mono:'Fira Code','Courier New',monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',system-ui,sans-serif;}
+  body{background:var(--bg);color:var(--text);padding:30px;min-height:100vh;}
+  h2{font-size:1.4rem;margin-bottom:6px;}
+  .subtitle{color:var(--text-muted);font-size:.85rem;margin-bottom:24px;}
+
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:24px;max-width:760px;margin:0 auto 28px;}
+  .card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px;}
+  .card-header h3{font-size:1.1rem;margin:0;}
+  .badge{padding:3px 10px;border-radius:20px;font-size:.7rem;font-weight:700;text-transform:uppercase;}
+  .badge.secure{background:rgba(34,197,94,.15);color:var(--success);}
+  .badge.warn{background:rgba(245,158,11,.15);color:var(--warning);}
+
+  .mode-strip{display:flex;background:#15181e;border-radius:6px;border:1px solid var(--border);overflow:hidden;margin-bottom:22px;}
+  .mode-btn{flex:1;padding:10px;text-align:center;cursor:pointer;color:var(--text-muted);font-size:.85rem;font-weight:600;text-transform:uppercase;transition:.2s;border:none;background:none;}
+  .mode-btn.active{background:var(--panel);color:var(--primary);border-bottom:2px solid var(--primary);}
+  .panel{display:none;} .panel.active{display:block;}
+
+  .fg{margin-bottom:18px;position:relative;}
+  label{display:block;margin-bottom:7px;font-size:.85rem;color:var(--text-muted);font-weight:500;}
+  textarea,input[type=password],input[type=text]{width:100%;padding:11px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:.9rem;transition:border-color .2s;resize:vertical;}
+  textarea:focus,input:focus{outline:none;border-color:var(--primary);}
+  textarea.mono{font-family:var(--mono);font-size:.78rem;}
+
+  .out-box{font-family:var(--mono);font-size:.78rem;background:var(--bg);border:1px solid var(--border);padding:12px;border-radius:6px;word-break:break-all;min-height:56px;white-space:pre-wrap;overflow-x:auto;}
+
+  .btn{display:inline-flex;align-items:center;gap:8px;padding:10px 18px;background:var(--primary);color:#fff;border:none;border-radius:6px;font-size:.9rem;font-weight:600;cursor:pointer;transition:background .2s;}
+  .btn:hover{background:var(--primary-hover);}
+  .btn:disabled{background:var(--border);color:var(--text-muted);cursor:not-allowed;}
+  .btn-sm{background:transparent;border:1px solid var(--border);color:var(--text);padding:7px 14px;font-size:.82rem;}
+  .btn-sm:hover{background:var(--border);}
+  .btn-danger{background:transparent;border:1px solid var(--error);color:var(--error);}
+  .btn-danger:hover{background:rgba(239,68,68,.1);}
+  .btn-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
+
+  .spinner{width:15px;height:15px;border:2px solid rgba(255,255,255,.3);border-radius:50%;border-top-color:#fff;animation:spin .7s linear infinite;display:none;}
+  .btn.loading .spinner{display:inline-block;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  .status{margin-top:12px;padding:10px 14px;border-radius:6px;font-size:.85rem;display:none;}
+  .status.ok{background:rgba(34,197,94,.1);color:var(--success);border:1px solid rgba(34,197,94,.25);display:block;}
+  .status.err{background:rgba(239,68,68,.1);color:var(--error);border:1px solid rgba(239,68,68,.25);display:block;}
+
+  /* Key pair display grid */
+  .key-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;}
+  @media(max-width:600px){.key-grid{grid-template-columns:1fr;}}
+  .key-box{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:14px;}
+  .key-box-title{font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;}
+  .key-box-title.pub{color:#34d399;}
+  .key-box-title.priv{color:#f87171;}
+  .key-pem{font-family:var(--mono);font-size:.72rem;word-break:break-all;white-space:pre-wrap;color:var(--text-muted);max-height:160px;overflow-y:auto;line-height:1.5;}
+
+  /* Warning notice */
+  .notice{padding:12px 14px;border-radius:6px;font-size:.82rem;background:rgba(245,158,11,.08);color:var(--warning);border:1px solid rgba(245,158,11,.2);margin-bottom:18px;line-height:1.5;}
+
+  details{margin-top:22px;padding:14px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:6px;font-size:.83rem;color:var(--text-muted);}
+  details summary{cursor:pointer;font-weight:600;color:var(--text);}
+  details p{margin-top:10px;line-height:1.6;}
+  code{background:rgba(255,255,255,.07);padding:1px 5px;border-radius:3px;font-family:var(--mono);}
+</style>
+</head>
+<body>
+<div style="max-width:760px;margin:0 auto;">
+  <h2>3a — RSA-4096 Key Pair</h2>
+  <p class="subtitle">WebCrypto RSA-OAEP · SHA-256 · 4096-bit modulus · PKCS#8 / SPKI PEM export</p>
+
+  <!-- ── STEP 1: GENERATE ───────────────────────────────────────────── -->
+  <div class="card">
+    <div class="card-header">
+      <h3>Step 1 — Generate Key Pair</h3>
+      <span class="badge secure">RSA-OAEP · 4096-bit</span>
+    </div>
+
+    <div class="notice">
+      ⚠️ RSA-4096 key generation is computationally heavy.
+      Generation takes <strong>5–20 seconds</strong> depending on your device.
+      Keys are generated entirely in your browser and never leave this page.
+    </div>
+
+    <button class="btn" id="gen-btn" onclick="generateKeyPair()">
+      <span class="spinner"></span> Generate RSA-4096 Key Pair
+    </button>
+    <div id="gen-status" class="status"></div>
+
+    <div id="key-display" style="display:none;margin-top:20px;">
+      <div class="key-grid">
+        <div class="key-box">
+          <div class="key-box-title pub">🔓 Public Key (SPKI)</div>
+          <div class="key-pem" id="pub-pem"></div>
+        </div>
+        <div class="key-box">
+          <div class="key-box-title priv">🔑 Private Key (PKCS#8)</div>
+          <div class="key-pem" id="priv-pem"></div>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-sm" onclick="downloadPem('pub-pem','public_key.pem')">⬇ Download Public Key</button>
+        <button class="btn btn-sm" onclick="downloadPem('priv-pem','private_key.pem')">⬇ Download Private Key</button>
+        <button class="btn btn-sm" id="copy-pub" onclick="copyText(document.getElementById('pub-pem').textContent,'copy-pub')">Copy Public Key</button>
+        <button class="btn btn-sm btn-danger" onclick="clearKeys()">🗑 Clear Keys</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── STEP 2: ENCRYPT / DECRYPT ─────────────────────────────────── -->
+  <div class="card">
+    <div class="card-header">
+      <h3>Step 2 — Encrypt &amp; Decrypt</h3>
+      <span class="badge warn">Paste keys or generate above</span>
+    </div>
+
+    <div class="mode-strip">
+      <button class="mode-btn active" id="tab-enc" onclick="setMode('enc')">🔒 Encrypt with Public Key</button>
+      <button class="mode-btn"        id="tab-dec" onclick="setMode('dec')">🔓 Decrypt with Private Key</button>
+    </div>
+
+    <!-- ENCRYPT PANEL -->
+    <div id="panel-enc" class="panel active">
+      <div class="fg">
+        <label>Public Key (PEM — SPKI format)</label>
+        <textarea id="enc-pubkey" class="mono" rows="6"
+          placeholder="-----BEGIN PUBLIC KEY-----&#10;Paste or generate a key above…&#10;-----END PUBLIC KEY-----"></textarea>
+      </div>
+      <div class="fg">
+        <label>Plaintext</label>
+        <textarea id="enc-text" rows="4" placeholder="Text to encrypt with the public key…"></textarea>
+      </div>
+      <button class="btn" id="enc-btn" onclick="doRsaEncrypt()">
+        <span class="spinner"></span> Encrypt
+      </button>
+      <div id="enc-status" class="status"></div>
+      <div class="fg" style="margin-top:16px;">
+        <label>Ciphertext — Base64</label>
+        <div class="out-box" id="enc-out"></div>
+        <div class="btn-row">
+          <button class="btn btn-sm" id="enc-copy" onclick="copyText(document.getElementById('enc-out').textContent,'enc-copy')">Copy to clipboard</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- DECRYPT PANEL -->
+    <div id="panel-dec" class="panel">
+      <div class="fg">
+        <label>Private Key (PEM — PKCS#8 format)</label>
+        <textarea id="dec-privkey" class="mono" rows="6"
+          placeholder="-----BEGIN PRIVATE KEY-----&#10;Paste your private key here…&#10;-----END PRIVATE KEY-----"></textarea>
+      </div>
+      <div class="fg">
+        <label>Ciphertext — Base64</label>
+        <textarea id="dec-text" rows="4" placeholder="Paste the Base64 ciphertext…"></textarea>
+      </div>
+      <button class="btn" id="dec-btn" onclick="doRsaDecrypt()">
+        <span class="spinner"></span> Decrypt
+      </button>
+      <div id="dec-status" class="status"></div>
+      <div class="fg" style="margin-top:16px;">
+        <label>Decrypted Plaintext</label>
+        <div class="out-box" id="dec-out"></div>
+        <div class="btn-row">
+          <button class="btn btn-sm" id="dec-copy" onclick="copyText(document.getElementById('dec-out').textContent,'dec-copy')">Copy to clipboard</button>
+        </div>
+      </div>
+    </div>
+
+    <details>
+      <summary>How it works</summary>
+      <p>
+        RSA-4096 uses WebCrypto's <strong>RSA-OAEP</strong> (Optimal Asymmetric Encryption Padding) scheme
+        with SHA-256 as the hash function. The public key encrypts data; only the matching private key can
+        decrypt it. Because RSA can only encrypt data shorter than the key modulus minus padding overhead
+        (~446 bytes for 4096-bit), this tool is suited for short payloads — use it to encrypt a symmetric key
+        (like an AES key) for hybrid encryption in real systems.
+        Keys are exported in standard <code>SPKI</code> (public) and <code>PKCS#8</code> (private) PEM format,
+        compatible with OpenSSL, Node.js, and most crypto libraries.
+      </p>
+    </details>
+  </div>
+</div>
+
+<script>
+// ── Shared state ─────────────────────────────────────────────────────────────
+let _keyPair = null; // holds the generated CryptoKeyPair
+
+// ── UI helpers ───────────────────────────────────────────────────────────────
+function setMode(m) {
+  document.getElementById('panel-enc').classList.toggle('active', m === 'enc');
+  document.getElementById('panel-dec').classList.toggle('active', m === 'dec');
+  document.getElementById('tab-enc').classList.toggle('active',   m === 'enc');
+  document.getElementById('tab-dec').classList.toggle('active',   m === 'dec');
+}
+
+function showStatus(id, msg, isErr) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.className = 'status ' + (isErr ? 'err' : 'ok');
+  setTimeout(() => { el.style.display = 'none'; }, 8000);
+}
+
+function setLoading(id, on) {
+  const b = document.getElementById(id);
+  b.disabled = on;
+  on ? b.classList.add('loading') : b.classList.remove('loading');
+}
+
+const _copyTimers = {};
+function copyText(text, btnId) {
+  text = text ? text.trim() : '';
+  if (!text) return;
+  navigator.clipboard.writeText(text);
+  const btn = document.getElementById(btnId), orig = btn.textContent;
+  if (_copyTimers[btnId]) clearInterval(_copyTimers[btnId]);
+  let t = 30;
+  btn.textContent = `Clearing in ${t}s…`;
+  _copyTimers[btnId] = setInterval(() => {
+    t--;
+    if (t <= 0) { clearInterval(_copyTimers[btnId]); navigator.clipboard.writeText(''); btn.textContent = orig; }
+    else btn.textContent = `Clearing in ${t}s…`;
+  }, 1000);
+}
+
+// ── PEM encoding helpers ─────────────────────────────────────────────────────
+
+function arrayBufferToPem(buffer, label) {
+  const b64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
+  const lines = b64.match(/.{1,64}/g).join('\n');
+  return `-----BEGIN ${label}-----\n${lines}\n-----END ${label}-----`;
+}
+
+function pemToArrayBuffer(pem) {
+  // Strip header, footer and all whitespace
+  const b64 = pem
+    .replace(/-----BEGIN [^-]+-----/, '')
+    .replace(/-----END [^-]+-----/, '')
+    .replace(/\s/g, '');
+  const bin = atob(b64);
+  const buf = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+  return buf.buffer;
+}
+
+function downloadPem(elId, filename) {
+  const text = document.getElementById(elId).textContent.trim();
+  if (!text) return;
+  const blob = new Blob([text], { type: 'text/plain' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+function clearKeys() {
+  _keyPair = null;
+  document.getElementById('pub-pem').textContent = '';
+  document.getElementById('priv-pem').textContent = '';
+  document.getElementById('key-display').style.display = 'none';
+}
+
+// ── RSA-4096 Key Generation ──────────────────────────────────────────────────
+
+async function generateKeyPair() {
+  setLoading('gen-btn', true);
+  showStatus('gen-status', '⏳ Generating RSA-4096 key pair… this may take 5–20 seconds.', false);
+
+  try {
+    _keyPair = await crypto.subtle.generateKey(
+      {
+        name:           'RSA-OAEP',
+        modulusLength:  4096,
+        publicExponent: new Uint8Array([0x01, 0x00, 0x01]), // 65537
+        hash:           'SHA-256'
+      },
+      true,                        // extractable — needed to export PEM
+      ['encrypt', 'decrypt']
+    );
+
+    // Export public key as SPKI → PEM
+    const pubRaw  = await crypto.subtle.exportKey('spki',   _keyPair.publicKey);
+    const privRaw = await crypto.subtle.exportKey('pkcs8',  _keyPair.privateKey);
+
+    const pubPem  = arrayBufferToPem(pubRaw,  'PUBLIC KEY');
+    const privPem = arrayBufferToPem(privRaw, 'PRIVATE KEY');
+
+    document.getElementById('pub-pem').textContent  = pubPem;
+    document.getElementById('priv-pem').textContent = privPem;
+
+    // Auto-fill the encrypt panel's public key textarea
+    document.getElementById('enc-pubkey').value = pubPem;
+
+    document.getElementById('key-display').style.display = 'block';
+    showStatus('gen-status', '✔ RSA-4096 key pair generated successfully.', false);
+  } catch (e) {
+    showStatus('gen-status', 'Key generation failed: ' + e.message, true);
+  } finally {
+    setLoading('gen-btn', false);
+  }
+}
+
+// ── RSA-OAEP Encrypt ─────────────────────────────────────────────────────────
+
+async function doRsaEncrypt() {
+  const pemText = document.getElementById('enc-pubkey').value.trim();
+  const text    = document.getElementById('enc-text').value;
+
+  if (!pemText) return showStatus('enc-status', 'Please provide or generate a public key.', true);
+  if (!text)    return showStatus('enc-status', 'Please enter text to encrypt.', true);
+
+  setLoading('enc-btn', true);
+  document.getElementById('enc-out').textContent = '';
+
+  try {
+    // Import the PEM public key
+    const pubKey = await crypto.subtle.importKey(
+      'spki',
+      pemToArrayBuffer(pemText),
+      { name: 'RSA-OAEP', hash: 'SHA-256' },
+      false,
+      ['encrypt']
+    );
+
+    const encoded = new TextEncoder().encode(text);
+
+    // RSA-OAEP with SHA-256 on 4096-bit key: max plaintext ≈ 446 bytes
+    if (encoded.length > 446) {
+      throw new Error(`Plaintext too long for RSA-4096-OAEP (${encoded.length} bytes; max ~446 bytes). Use AES to encrypt large data and RSA to encrypt the AES key.`);
+    }
+
+    const cipherBuf = await crypto.subtle.encrypt({ name: 'RSA-OAEP' }, pubKey, encoded);
+    const b64 = btoa(String.fromCharCode(...new Uint8Array(cipherBuf)));
+
+    document.getElementById('enc-out').textContent = b64;
+    showStatus('enc-status', '✔ Encrypted with RSA-4096 public key.', false);
+  } catch (e) {
+    showStatus('enc-status', e.message, true);
+  } finally {
+    setLoading('enc-btn', false);
+  }
+}
+
+// ── RSA-OAEP Decrypt ─────────────────────────────────────────────────────────
+
+async function doRsaDecrypt() {
+  const pemText = document.getElementById('dec-privkey').value.trim();
+  const b64     = document.getElementById('dec-text').value.trim();
+
+  if (!pemText) return showStatus('dec-status', 'Please provide a private key.', true);
+  if (!b64)     return showStatus('dec-status', 'Please paste the Base64 ciphertext.', true);
+
+  setLoading('dec-btn', true);
+  document.getElementById('dec-out').textContent = '';
+
+  try {
+    const privKey = await crypto.subtle.importKey(
+      'pkcs8',
+      pemToArrayBuffer(pemText),
+      { name: 'RSA-OAEP', hash: 'SHA-256' },
+      false,
+      ['decrypt']
+    );
+
+    const cipherBuf = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+    const plainBuf  = await crypto.subtle.decrypt({ name: 'RSA-OAEP' }, privKey, cipherBuf);
+
+    document.getElementById('dec-out').textContent = new TextDecoder().decode(plainBuf);
+    showStatus('dec-status', '✔ Decrypted successfully.', false);
+  } catch (e) {
+    showStatus('dec-status', 'Decryption failed — wrong private key or corrupted ciphertext.', true);
+  } finally {
+    setLoading('dec-btn', false);
+  }
+}
+</script>
+</body>
+</html>

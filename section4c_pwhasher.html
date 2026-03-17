@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aegis · 4c — Password Hasher</title>
+<style>
+  :root {
+    --bg:#0f1115; --panel:#1a1d24; --border:#2a2e39;
+    --primary:#3b82f6; --primary-hover:#2563eb;
+    --text:#e2e8f0; --text-muted:#94a3b8;
+    --error:#ef4444; --success:#22c55e; --warning:#f59e0b;
+    --mono:'Fira Code','Courier New',monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',system-ui,sans-serif;}
+  body{background:var(--bg);color:var(--text);padding:30px;min-height:100vh;}
+  h2{font-size:1.4rem;margin-bottom:6px;}
+  .subtitle{color:var(--text-muted);font-size:.85rem;margin-bottom:24px;}
+
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:24px;max-width:760px;margin:0 auto 28px;}
+  .card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px;}
+  .card-header h3{font-size:1.1rem;margin:0;}
+  .badge{padding:3px 10px;border-radius:20px;font-size:.7rem;font-weight:700;text-transform:uppercase;background:rgba(34,197,94,.15);color:var(--success);}
+
+  .mode-strip{display:flex;background:#15181e;border-radius:6px;border:1px solid var(--border);overflow:hidden;margin-bottom:22px;}
+  .mode-btn{flex:1;padding:10px;text-align:center;cursor:pointer;color:var(--text-muted);font-size:.85rem;font-weight:600;text-transform:uppercase;transition:.2s;border:none;background:none;}
+  .mode-btn.active{background:var(--panel);color:var(--primary);border-bottom:2px solid var(--primary);}
+  .panel{display:none;} .panel.active{display:block;}
+
+  .fg{margin-bottom:18px;position:relative;}
+  label{display:block;margin-bottom:7px;font-size:.85rem;color:var(--text-muted);font-weight:500;}
+  textarea,input[type=password],input[type=text],input[type=number],select{
+    width:100%;padding:11px;background:var(--bg);border:1px solid var(--border);
+    border-radius:6px;color:var(--text);font-size:.9rem;transition:border-color .2s;resize:vertical;}
+  input:focus,textarea:focus,select:focus{outline:none;border-color:var(--primary);}
+  .eye{position:absolute;right:10px;top:33px;background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1rem;}
+
+  .out-box{font-family:var(--mono);font-size:.8rem;background:var(--bg);border:1px solid var(--border);padding:12px;border-radius:6px;word-break:break-all;min-height:48px;white-space:pre-wrap;}
+
+  .btn{display:inline-flex;align-items:center;gap:8px;padding:10px 18px;background:var(--primary);color:#fff;border:none;border-radius:6px;font-size:.9rem;font-weight:600;cursor:pointer;transition:background .2s;}
+  .btn:hover{background:var(--primary-hover);}
+  .btn:disabled{background:var(--border);color:var(--text-muted);cursor:not-allowed;}
+  .btn-sm{background:transparent;border:1px solid var(--border);color:var(--text);padding:7px 14px;font-size:.82rem;}
+  .btn-sm:hover{background:var(--border);}
+  .btn-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
+
+  .spinner{width:15px;height:15px;border:2px solid rgba(255,255,255,.3);border-radius:50%;border-top-color:#fff;animation:spin .7s linear infinite;display:none;}
+  .btn.loading .spinner{display:inline-block;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  .status{margin-top:12px;padding:10px 14px;border-radius:6px;font-size:.85rem;display:none;}
+  .status.ok{background:rgba(34,197,94,.1);color:var(--success);border:1px solid rgba(34,197,94,.25);display:block;}
+  .status.err{background:rgba(239,68,68,.1);color:var(--error);border:1px solid rgba(239,68,68,.25);display:block;}
+
+  /* Options grid */
+  .opts-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:18px;}
+  @media(max-width:600px){.opts-3{grid-template-columns:1fr;}}
+  .opts-2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px;}
+  @media(max-width:500px){.opts-2{grid-template-columns:1fr;}}
+
+  /* Result card */
+  .result-card{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:16px;margin-top:16px;}
+  .result-row{display:flex;gap:10px;margin-bottom:10px;flex-wrap:wrap;align-items:flex-start;}
+  .result-row:last-child{margin-bottom:0;}
+  .result-label{font-size:.78rem;color:var(--text-muted);font-weight:600;min-width:90px;padding-top:2px;}
+  .result-val{font-family:var(--mono);font-size:.78rem;word-break:break-all;flex:1;}
+
+  /* Verify result */
+  .verify-result{padding:16px 20px;border-radius:8px;margin-top:16px;text-align:center;display:none;}
+  .verify-result.valid{background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);display:block;}
+  .verify-result.invalid{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);display:block;}
+  .verify-icon{font-size:2rem;margin-bottom:6px;}
+  .verify-label{font-weight:700;font-size:.95rem;}
+  .verify-label.valid{color:var(--success);}
+  .verify-label.invalid{color:var(--error);}
+  .verify-sub{font-size:.8rem;color:var(--text-muted);margin-top:4px;}
+
+  /* Iterations slider */
+  .iter-wrap{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+  .iter-wrap input[type=range]{flex:1;min-width:120px;accent-color:var(--primary);}
+  .iter-val{font-family:var(--mono);font-size:.85rem;color:var(--primary);font-weight:700;min-width:80px;}
+
+  /* Password strength */
+  .strength-bar-bg{height:6px;border-radius:3px;background:var(--border);margin-top:7px;overflow:hidden;}
+  .strength-bar-fill{height:100%;border-radius:3px;transition:width .3s,background .3s;}
+  .strength-label{font-size:.75rem;margin-top:4px;}
+
+  details{margin-top:22px;padding:14px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:6px;font-size:.83rem;color:var(--text-muted);}
+  details summary{cursor:pointer;font-weight:600;color:var(--text);}
+  details p{margin-top:10px;line-height:1.6;}
+  code{background:rgba(255,255,255,.07);padding:1px 5px;border-radius:3px;font-family:var(--mono);}
+</style>
+</head>
+<body>
+<div style="max-width:760px;margin:0 auto;">
+  <h2>4c — Password Hasher</h2>
+  <p class="subtitle">PBKDF2 · configurable iterations · random salt · hash + salt output · verify mode</p>
+
+  <div class="card">
+    <div class="card-header">
+      <h3>PBKDF2 Password Hash</h3>
+      <span class="badge">✔ Secure</span>
+    </div>
+
+    <div class="mode-strip">
+      <button class="mode-btn active" id="tab-hash"   onclick="setMode('hash')">🔒 Hash Password</button>
+      <button class="mode-btn"        id="tab-verify" onclick="setMode('verify')">✅ Verify Password</button>
+    </div>
+
+    <!-- HASH PANEL -->
+    <div id="panel-hash" class="panel active">
+      <div class="fg">
+        <label>Password to hash</label>
+        <input type="password" id="hash-pass" placeholder="Enter the password to hash"
+               oninput="updateStrength(this.value)">
+        <button class="eye" onclick="toggleEye('hash-pass',this)">👁</button>
+        <div class="strength-bar-bg"><div class="strength-bar-fill" id="strength-fill" style="width:0%"></div></div>
+        <div class="strength-label" id="strength-label" style="color:var(--text-muted);">Enter a password</div>
+      </div>
+
+      <div class="opts-3">
+        <div class="fg" style="margin:0;">
+          <label>Hash Algorithm</label>
+          <select id="hash-algo">
+            <option value="SHA-256">SHA-256</option>
+            <option value="SHA-512">SHA-512</option>
+            <option value="SHA-384">SHA-384</option>
+          </select>
+        </div>
+        <div class="fg" style="margin:0;">
+          <label>Salt Length (bytes)</label>
+          <select id="hash-saltlen">
+            <option value="16">16 bytes (128-bit)</option>
+            <option value="32" selected>32 bytes (256-bit)</option>
+            <option value="64">64 bytes (512-bit)</option>
+          </select>
+        </div>
+        <div class="fg" style="margin:0;">
+          <label>Output Encoding</label>
+          <select id="hash-enc">
+            <option value="hex">Hex</option>
+            <option value="b64">Base64</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="fg">
+        <label>Iterations — <span id="iter-display">250,000</span>
+          <span style="color:var(--text-muted);font-size:.75rem;">&nbsp;(higher = slower = more secure)</span>
+        </label>
+        <div class="iter-wrap">
+          <input type="range" id="iter-slider" min="10000" max="1000000" step="10000" value="250000"
+                 oninput="updateIterDisplay(this.value)">
+          <span class="iter-val" id="iter-val-display">250,000</span>
+        </div>
+      </div>
+
+      <button class="btn" id="hash-btn" onclick="doHash()">
+        <span class="spinner"></span> Hash Password
+      </button>
+      <div id="hash-status" class="status"></div>
+
+      <div class="result-card" id="hash-result" style="display:none;">
+        <div class="result-row">
+          <span class="result-label">Hash</span>
+          <span class="result-val" id="res-hash"></span>
+        </div>
+        <div class="result-row">
+          <span class="result-label">Salt</span>
+          <span class="result-val" id="res-salt"></span>
+        </div>
+        <div class="result-row">
+          <span class="result-label">Algorithm</span>
+          <span class="result-val" id="res-algo"></span>
+        </div>
+        <div class="result-row">
+          <span class="result-label">Iterations</span>
+          <span class="result-val" id="res-iter"></span>
+        </div>
+        <div class="result-row">
+          <span class="result-label">Full Record</span>
+          <span class="result-val" id="res-full"></span>
+        </div>
+        <div class="btn-row" style="margin-top:12px;">
+          <button class="btn btn-sm" id="copy-hash-btn" onclick="copyText(document.getElementById('res-hash').textContent,'copy-hash-btn')">Copy Hash</button>
+          <button class="btn btn-sm" id="copy-full-btn" onclick="copyText(document.getElementById('res-full').textContent,'copy-full-btn')">Copy Full Record</button>
+          <button class="btn btn-sm" onclick="fillVerifyFromResult()">→ Send to Verify tab</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- VERIFY PANEL -->
+    <div id="panel-verify" class="panel">
+      <p style="font-size:.83rem;color:var(--text-muted);margin-bottom:18px;">
+        Paste the full record string generated in the Hash tab, or fill in the fields manually.
+      </p>
+      <div class="fg">
+        <label>Full Record (auto-parse)</label>
+        <input type="text" id="ver-record" placeholder="pbkdf2:SHA-256:250000:&lt;salt&gt;:&lt;hash&gt;"
+               oninput="parseRecord(this.value)" style="font-family:var(--mono);font-size:.82rem;">
+      </div>
+      <div class="opts-3">
+        <div class="fg" style="margin:0;">
+          <label>Algorithm</label>
+          <select id="ver-algo">
+            <option value="SHA-256">SHA-256</option>
+            <option value="SHA-512">SHA-512</option>
+            <option value="SHA-384">SHA-384</option>
+          </select>
+        </div>
+        <div class="fg" style="margin:0;">
+          <label>Encoding</label>
+          <select id="ver-enc">
+            <option value="hex">Hex</option>
+            <option value="b64">Base64</option>
+          </select>
+        </div>
+        <div class="fg" style="margin:0;">
+          <label>Iterations</label>
+          <input type="number" id="ver-iter" value="250000" min="1000" max="2000000">
+        </div>
+      </div>
+      <div class="fg">
+        <label>Salt (hex or Base64)</label>
+        <input type="text" id="ver-salt" placeholder="Paste the salt value…" style="font-family:var(--mono);font-size:.85rem;">
+      </div>
+      <div class="fg">
+        <label>Known Hash (hex or Base64)</label>
+        <input type="text" id="ver-hash" placeholder="Paste the hash value to compare against…" style="font-family:var(--mono);font-size:.85rem;">
+      </div>
+      <div class="fg">
+        <label>Password to verify</label>
+        <input type="password" id="ver-pass" placeholder="Enter the password to test">
+        <button class="eye" onclick="toggleEye('ver-pass',this)">👁</button>
+      </div>
+
+      <button class="btn" id="ver-btn" onclick="doVerify()">
+        <span class="spinner"></span> Verify Password
+      </button>
+      <div id="ver-status" class="status"></div>
+
+      <div class="verify-result" id="ver-result">
+        <div class="verify-icon"  id="ver-icon"></div>
+        <div class="verify-label" id="ver-label"></div>
+        <div class="verify-sub"   id="ver-sub"></div>
+      </div>
+    </div>
+
+    <details>
+      <summary>How PBKDF2 works</summary>
+      <p>
+        <strong>PBKDF2 (Password-Based Key Derivation Function 2)</strong> is designed to be slow by repeating
+        an HMAC computation a configurable number of times (iterations). This makes brute-force and dictionary
+        attacks expensive: 250,000 iterations means an attacker must perform 250,000 HMAC operations per
+        password guess. A <strong>random salt</strong> ensures the same password produces a different hash
+        each time, defeating precomputed rainbow table attacks. The output record format
+        <code>pbkdf2:ALGO:ITER:SALT:HASH</code> stores all parameters needed for verification —
+        similar to how databases like Django or PostgreSQL store password hashes.
+      </p>
+    </details>
+  </div>
+</div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────────
+let _lastResult = null; // { hash, salt, algo, iter, enc }
+
+// ── UI helpers ────────────────────────────────────────────────────────────────
+function setMode(m) {
+  document.getElementById('panel-hash').classList.toggle('active',   m === 'hash');
+  document.getElementById('panel-verify').classList.toggle('active', m === 'verify');
+  document.getElementById('tab-hash').classList.toggle('active',     m === 'hash');
+  document.getElementById('tab-verify').classList.toggle('active',   m === 'verify');
+}
+function toggleEye(id, btn) {
+  const el = document.getElementById(id);
+  el.type = el.type === 'password' ? 'text' : 'password';
+  btn.textContent = el.type === 'password' ? '👁' : '🙈';
+}
+function showStatus(id, msg, isErr) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.className = 'status ' + (isErr ? 'err' : 'ok');
+  setTimeout(() => { el.style.display = 'none'; }, 8000);
+}
+function setLoading(id, on) {
+  const b = document.getElementById(id);
+  b.disabled = on;
+  on ? b.classList.add('loading') : b.classList.remove('loading');
+}
+const _ct = {};
+function copyText(text, btnId) {
+  text = (text || '').trim();
+  if (!text) return;
+  navigator.clipboard.writeText(text);
+  const btn = document.getElementById(btnId), orig = btn.textContent;
+  if (_ct[btnId]) clearInterval(_ct[btnId]);
+  let t = 30;
+  btn.textContent = `Clearing in ${t}s…`;
+  _ct[btnId] = setInterval(() => {
+    t--;
+    if (t <= 0) { clearInterval(_ct[btnId]); navigator.clipboard.writeText(''); btn.textContent = orig; }
+    else btn.textContent = `Clearing in ${t}s…`;
+  }, 1000);
+}
+
+// ── Iterations slider ─────────────────────────────────────────────────────────
+function updateIterDisplay(val) {
+  const fmt = parseInt(val).toLocaleString();
+  document.getElementById('iter-display').textContent     = fmt;
+  document.getElementById('iter-val-display').textContent = fmt;
+}
+
+// ── Password strength ─────────────────────────────────────────────────────────
+function updateStrength(pw) {
+  let score = 0;
+  if (pw.length >= 8)  score++;
+  if (pw.length >= 12) score++;
+  if (pw.length >= 16) score++;
+  if (/[A-Z]/.test(pw)) score++;
+  if (/[a-z]/.test(pw)) score++;
+  if (/[0-9]/.test(pw)) score++;
+  if (/[^A-Za-z0-9]/.test(pw)) score++;
+
+  const labels = ['', 'Very Weak', 'Weak', 'Fair', 'Good', 'Strong', 'Very Strong', 'Excellent'];
+  const colors = ['', '#ef4444', '#f97316', '#f59e0b', '#84cc16', '#22c55e', '#10b981', '#06b6d4'];
+  const pct    = Math.round((score / 7) * 100);
+
+  document.getElementById('strength-fill').style.width      = pct + '%';
+  document.getElementById('strength-fill').style.background = colors[score] || '#ef4444';
+  document.getElementById('strength-label').textContent     = labels[score] || 'Too Short';
+  document.getElementById('strength-label').style.color     = colors[score] || '#ef4444';
+}
+
+// ── Encoding helpers ──────────────────────────────────────────────────────────
+function bufToHex(buf) { return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join(''); }
+function bufToB64(buf) { return btoa(String.fromCharCode(...new Uint8Array(buf))); }
+function hexToBuf(h)   { h=h.trim(); const b=new Uint8Array(h.length/2); for(let i=0;i<b.length;i++) b[i]=parseInt(h.substr(i*2,2),16); return b.buffer; }
+function b64ToBuf(s)   { return Uint8Array.from(atob(s.trim()), c=>c.charCodeAt(0)).buffer; }
+
+function encodeBuf(buf, enc) { return enc === 'b64' ? bufToB64(buf) : bufToHex(buf); }
+
+function decodeBuf(str, enc) {
+  str = str.trim();
+  // Auto-detect: if not valid hex, treat as Base64
+  if (enc === 'b64') return b64ToBuf(str);
+  if (/^[0-9a-fA-F]+$/.test(str)) return hexToBuf(str);
+  return b64ToBuf(str); // fallback
+}
+
+// Constant-time comparison
+function constantTimeEqual(a, b) {
+  const ua = new Uint8Array(a), ub = new Uint8Array(b);
+  if (ua.length !== ub.length) return false;
+  let diff = 0;
+  for (let i = 0; i < ua.length; i++) diff |= ua[i] ^ ub[i];
+  return diff === 0;
+}
+
+// ── PBKDF2 core ───────────────────────────────────────────────────────────────
+async function pbkdf2(password, salt, iterations, hashAlgo) {
+  const enc     = new TextEncoder();
+  const keyMat  = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']);
+  const bits    = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', salt, iterations, hash: hashAlgo },
+    keyMat,
+    256  // 256 output bits regardless of hash size
+  );
+  return bits;
+}
+
+// ── Hash ──────────────────────────────────────────────────────────────────────
+async function doHash() {
+  const pass    = document.getElementById('hash-pass').value;
+  const algo    = document.getElementById('hash-algo').value;
+  const saltLen = parseInt(document.getElementById('hash-saltlen').value);
+  const iter    = parseInt(document.getElementById('iter-slider').value);
+  const enc     = document.getElementById('hash-enc').value;
+
+  if (!pass) return showStatus('hash-status', 'Please enter a password.', true);
+
+  setLoading('hash-btn', true);
+  document.getElementById('hash-result').style.display = 'none';
+  showStatus('hash-status', `⏳ Running PBKDF2 with ${iter.toLocaleString()} iterations… please wait.`, false);
+
+  // Defer to allow status message to render before the blocking PBKDF2 work
+  setTimeout(async () => {
+    try {
+      const salt      = crypto.getRandomValues(new Uint8Array(saltLen));
+      const hashBuf   = await pbkdf2(pass, salt, iter, algo);
+
+      const hashStr   = encodeBuf(hashBuf, enc);
+      const saltStr   = encodeBuf(salt.buffer, enc);
+      const fullRecord= `pbkdf2:${algo}:${iter}:${saltStr}:${hashStr}`;
+
+      _lastResult = { hash: hashStr, salt: saltStr, algo, iter, enc };
+
+      document.getElementById('res-hash').textContent = hashStr;
+      document.getElementById('res-salt').textContent = saltStr;
+      document.getElementById('res-algo').textContent = `PBKDF2-${algo}, ${iter.toLocaleString()} iterations`;
+      document.getElementById('res-iter').textContent = iter.toLocaleString();
+      document.getElementById('res-full').textContent = fullRecord;
+      document.getElementById('hash-result').style.display = 'block';
+
+      showStatus('hash-status', `✔ Password hashed with PBKDF2-${algo}, ${iter.toLocaleString()} iterations.`, false);
+    } catch (e) {
+      showStatus('hash-status', 'Hashing failed: ' + e.message, true);
+    } finally {
+      setLoading('hash-btn', false);
+    }
+  }, 50);
+}
+
+// ── Fill verify tab from hash result ─────────────────────────────────────────
+function fillVerifyFromResult() {
+  if (!_lastResult) return;
+  document.getElementById('ver-algo').value = _lastResult.algo;
+  document.getElementById('ver-enc').value  = _lastResult.enc;
+  document.getElementById('ver-iter').value = _lastResult.iter;
+  document.getElementById('ver-salt').value = _lastResult.salt;
+  document.getElementById('ver-hash').value = _lastResult.hash;
+  document.getElementById('ver-record').value = `pbkdf2:${_lastResult.algo}:${_lastResult.iter}:${_lastResult.salt}:${_lastResult.hash}`;
+  setMode('verify');
+}
+
+// ── Parse full record string ──────────────────────────────────────────────────
+function parseRecord(val) {
+  // Format: pbkdf2:ALGO:ITER:SALT:HASH
+  const parts = val.trim().split(':');
+  if (parts.length < 5) return;
+  const [prefix, algo, iter, salt, ...hashParts] = parts;
+  if (prefix.toLowerCase() !== 'pbkdf2') return;
+  const hash = hashParts.join(':'); // re-join in case Base64 had colons (it shouldn't, but defensive)
+  if (['SHA-256','SHA-384','SHA-512'].includes(algo)) document.getElementById('ver-algo').value = algo;
+  if (!isNaN(parseInt(iter))) document.getElementById('ver-iter').value = parseInt(iter);
+  if (salt) document.getElementById('ver-salt').value = salt;
+  if (hash) document.getElementById('ver-hash').value = hash;
+}
+
+// ── Verify ────────────────────────────────────────────────────────────────────
+async function doVerify() {
+  const pass    = document.getElementById('ver-pass').value;
+  const saltStr = document.getElementById('ver-salt').value.trim();
+  const hashStr = document.getElementById('ver-hash').value.trim();
+  const algo    = document.getElementById('ver-algo').value;
+  const iter    = parseInt(document.getElementById('ver-iter').value);
+  const enc     = document.getElementById('ver-enc').value;
+
+  if (!pass)    return showStatus('ver-status', 'Please enter the password to verify.', true);
+  if (!saltStr) return showStatus('ver-status', 'Please provide the salt.', true);
+  if (!hashStr) return showStatus('ver-status', 'Please provide the known hash.', true);
+  if (isNaN(iter) || iter < 1) return showStatus('ver-status', 'Invalid iteration count.', true);
+
+  setLoading('ver-btn', true);
+  document.getElementById('ver-result').style.display = 'none';
+  showStatus('ver-status', `⏳ Running PBKDF2 with ${iter.toLocaleString()} iterations…`, false);
+
+  setTimeout(async () => {
+    try {
+      const saltBuf    = decodeBuf(saltStr, enc);
+      const knownBuf   = decodeBuf(hashStr, enc);
+      const computedBuf= await pbkdf2(pass, saltBuf, iter, algo);
+
+      const match = constantTimeEqual(computedBuf, knownBuf);
+
+      const icon  = document.getElementById('ver-icon');
+      const label = document.getElementById('ver-label');
+      const sub   = document.getElementById('ver-sub');
+      const res   = document.getElementById('ver-result');
+
+      if (match) {
+        res.className    = 'verify-result valid';
+        icon.textContent = '✅';
+        label.className  = 'verify-label valid';
+        label.textContent= 'Password Correct';
+        sub.textContent  = 'The password produces the same hash. Verification successful.';
+      } else {
+        res.className    = 'verify-result invalid';
+        icon.textContent = '❌';
+        label.className  = 'verify-label invalid';
+        label.textContent= 'Password Incorrect';
+        sub.textContent  = 'The password does not match the stored hash.';
+      }
+      showStatus('ver-status', match ? '✔ Password verified.' : '✖ Password incorrect.', !match);
+    } catch (e) {
+      showStatus('ver-status', 'Verification failed: ' + e.message, true);
+    } finally {
+      setLoading('ver-btn', false);
+    }
+  }, 50);
+}
+</script>
+</body>
+</html>

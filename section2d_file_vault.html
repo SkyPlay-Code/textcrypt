@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aegis · 2d — File Vault (.aegis)</title>
+<style>
+  :root {
+    --bg:#0f1115; --panel:#1a1d24; --border:#2a2e39;
+    --primary:#3b82f6; --primary-hover:#2563eb;
+    --text:#e2e8f0; --text-muted:#94a3b8;
+    --error:#ef4444; --success:#22c55e;
+    --mono:'Fira Code','Courier New',monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',system-ui,sans-serif;}
+  body{background:var(--bg);color:var(--text);padding:30px;min-height:100vh;}
+  h2{font-size:1.4rem;margin-bottom:6px;}
+  .subtitle{color:var(--text-muted);font-size:.85rem;margin-bottom:24px;}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:24px;max-width:700px;margin:0 auto;}
+  .card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;}
+  .card-header h3{font-size:1.1rem;margin:0;}
+  .badge{padding:3px 10px;border-radius:20px;font-size:.7rem;font-weight:700;text-transform:uppercase;background:rgba(34,197,94,.15);color:var(--success);}
+  .mode-strip{display:flex;background:#15181e;border-radius:6px;border:1px solid var(--border);overflow:hidden;margin-bottom:22px;}
+  .mode-btn{flex:1;padding:10px;text-align:center;cursor:pointer;color:var(--text-muted);font-size:.85rem;font-weight:600;text-transform:uppercase;transition:.2s;border:none;background:none;}
+  .mode-btn.active{background:var(--panel);color:var(--primary);border-bottom:2px solid var(--primary);}
+  .panel{display:none;} .panel.active{display:block;}
+  .fg{margin-bottom:18px;position:relative;}
+  label{display:block;margin-bottom:7px;font-size:.85rem;color:var(--text-muted);font-weight:500;}
+  input[type=password]{width:100%;padding:11px 38px 11px 11px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:.9rem;transition:border-color .2s;}
+  input:focus{outline:none;border-color:var(--primary);}
+  .eye{position:absolute;right:10px;top:33px;background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1rem;line-height:1;}
+  .btn{display:inline-flex;align-items:center;gap:8px;padding:10px 18px;background:var(--primary);color:#fff;border:none;border-radius:6px;font-size:.9rem;font-weight:600;cursor:pointer;transition:background .2s;}
+  .btn:hover{background:var(--primary-hover);}
+  .btn:disabled{background:var(--border);color:var(--text-muted);cursor:not-allowed;}
+  .spinner{width:15px;height:15px;border:2px solid rgba(255,255,255,.3);border-radius:50%;border-top-color:#fff;animation:spin .7s linear infinite;display:none;}
+  .btn.loading .spinner{display:inline-block;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .status{margin-top:12px;padding:10px 14px;border-radius:6px;font-size:.85rem;display:none;}
+  .status.ok{background:rgba(34,197,94,.1);color:var(--success);border:1px solid rgba(34,197,94,.25);display:block;}
+  .status.err{background:rgba(239,68,68,.1);color:var(--error);border:1px solid rgba(239,68,68,.25);display:block;}
+  details{margin-top:22px;padding:14px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:6px;font-size:.83rem;color:var(--text-muted);}
+  details summary{cursor:pointer;font-weight:600;color:var(--text);}
+  details p{margin-top:10px;line-height:1.6;}
+  code{background:rgba(255,255,255,.07);padding:1px 5px;border-radius:3px;font-family:var(--mono);}
+
+  /* Drop zone */
+  .drop-zone{border:2px dashed var(--border);border-radius:8px;padding:32px 20px;text-align:center;cursor:pointer;transition:.2s;background:rgba(255,255,255,.01);}
+  .drop-zone:hover,.drop-zone.over{border-color:var(--primary);background:rgba(59,130,246,.06);}
+  .drop-zone p{color:var(--text-muted);font-size:.9rem;pointer-events:none;}
+  .drop-zone input{display:none;}
+  .file-info{margin-top:10px;font-size:.82rem;color:var(--primary);font-family:var(--mono);word-break:break-all;min-height:1.2em;}
+
+  /* Format spec table */
+  .spec{width:100%;border-collapse:collapse;font-size:.8rem;margin-top:10px;}
+  .spec td,.spec th{border:1px solid var(--border);padding:6px 10px;text-align:left;}
+  .spec th{color:var(--text-muted);background:rgba(0,0,0,.2);}
+  .spec td:first-child{font-family:var(--mono);color:var(--primary);}
+</style>
+</head>
+<body>
+
+<div style="max-width:700px;margin:0 auto;">
+  <h2>2d — Binary File Vault</h2>
+  <p class="subtitle">Encrypt any file with AES-256-GCM · outputs a portable <code style="background:rgba(255,255,255,.07);padding:1px 6px;border-radius:3px;font-family:monospace">.aegis</code> vault file</p>
+
+  <div class="card">
+    <div class="card-header">
+      <h3>File Vault</h3>
+      <span class="badge">✔ .AEGIS Format</span>
+    </div>
+
+    <div class="mode-strip">
+      <button class="mode-btn active" id="tab-enc" onclick="setMode('enc')">🔒 Encrypt File</button>
+      <button class="mode-btn"        id="tab-dec" onclick="setMode('dec')">🔓 Decrypt File</button>
+    </div>
+
+    <!-- ENCRYPT -->
+    <div id="panel-enc" class="panel active">
+      <div class="fg">
+        <label>Select any file</label>
+        <div class="drop-zone" id="enc-drop"
+             ondragover="onDragOver(event,'enc-drop')"
+             ondragleave="onDragLeave('enc-drop')"
+             ondrop="onDrop(event,'enc-file','enc-info')">
+          <p>Drag &amp; drop any file here, or click to browse</p>
+          <input type="file" id="enc-file" onchange="showFileInfo(this,'enc-info')"
+                 onclick="event.stopPropagation()">
+          <div class="file-info" id="enc-info"></div>
+        </div>
+      </div>
+      <div class="fg">
+        <label>Vault Password</label>
+        <input type="password" id="enc-pass" placeholder="Strong passphrase to lock the file">
+        <button class="eye" onclick="toggleEye('enc-pass',this)">👁</button>
+      </div>
+      <button class="btn" id="enc-btn" onclick="doEncrypt()">
+        <span class="spinner"></span> Encrypt &amp; Download .aegis
+      </button>
+      <div id="enc-status" class="status"></div>
+    </div>
+
+    <!-- DECRYPT -->
+    <div id="panel-dec" class="panel">
+      <div class="fg">
+        <label>Select .aegis vault file</label>
+        <div class="drop-zone" id="dec-drop"
+             ondragover="onDragOver(event,'dec-drop')"
+             ondragleave="onDragLeave('dec-drop')"
+             ondrop="onDrop(event,'dec-file','dec-info')">
+          <p>Drag &amp; drop .aegis file here, or click to browse</p>
+          <input type="file" id="dec-file" accept=".aegis" onchange="showFileInfo(this,'dec-info')"
+                 onclick="event.stopPropagation()">
+          <div class="file-info" id="dec-info"></div>
+        </div>
+      </div>
+      <div class="fg">
+        <label>Vault Password</label>
+        <input type="password" id="dec-pass" placeholder="Password used when encrypting">
+        <button class="eye" onclick="toggleEye('dec-pass',this)">👁</button>
+      </div>
+      <button class="btn" id="dec-btn" onclick="doDecrypt()">
+        <span class="spinner"></span> Decrypt &amp; Restore File
+      </button>
+      <div id="dec-status" class="status"></div>
+    </div>
+
+    <details>
+      <summary>How it works · .aegis binary format</summary>
+      <p>The entire file is read into memory as raw bytes and encrypted with <strong>AES-256-GCM</strong>
+         (key derived via PBKDF2, 250,000 iterations). The result is wrapped in a custom binary container
+         that stores the original filename so it is restored automatically on decryption. The GCM
+         authentication tag guarantees that any file corruption or tamper attempt is detected before
+         any bytes are returned.</p>
+      <table class="spec">
+        <tr><th>Field</th><th>Size</th><th>Notes</th></tr>
+        <tr><td>Magic</td><td>4 B</td><td>0x41 0x45 0x47 0x31 ("AEG1") — identifies the format</td></tr>
+        <tr><td>Salt</td><td>16 B</td><td>Random — used for PBKDF2 key derivation</td></tr>
+        <tr><td>IV</td><td>12 B</td><td>Random — AES-GCM initialization vector</td></tr>
+        <tr><td>NameLen</td><td>2 B</td><td>Big-endian u16 — length of original filename</td></tr>
+        <tr><td>FileName</td><td>N B</td><td>UTF-8 encoded original filename</td></tr>
+        <tr><td>Ciphertext</td><td>M B</td><td>Encrypted file bytes + 16 B GCM auth tag</td></tr>
+      </table>
+    </details>
+  </div>
+</div>
+
+<script>
+// .aegis magic: "AEG1"
+const MAGIC = new Uint8Array([0x41, 0x45, 0x47, 0x31]);
+
+// ── UI ───────────────────────────────────────────────────────────────────────
+
+function setMode(m) {
+  document.getElementById('panel-enc').classList.toggle('active', m === 'enc');
+  document.getElementById('panel-dec').classList.toggle('active', m === 'dec');
+  document.getElementById('tab-enc').classList.toggle('active',   m === 'enc');
+  document.getElementById('tab-dec').classList.toggle('active',   m === 'dec');
+}
+function toggleEye(id, btn) {
+  const el = document.getElementById(id);
+  el.type = el.type === 'password' ? 'text' : 'password';
+  btn.textContent = el.type === 'password' ? '👁' : '🙈';
+}
+function showStatus(id, msg, isErr) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.className = 'status ' + (isErr ? 'err' : 'ok');
+  setTimeout(() => { el.style.display = 'none'; }, 7000);
+}
+function setLoading(id, on) {
+  const b = document.getElementById(id);
+  b.disabled = on;
+  on ? b.classList.add('loading') : b.classList.remove('loading');
+}
+function fmtSize(n) {
+  if (n < 1024) return n + ' B';
+  if (n < 1048576) return (n/1024).toFixed(1) + ' KB';
+  return (n/1048576).toFixed(2) + ' MB';
+}
+function showFileInfo(input, infoId) {
+  const info = document.getElementById(infoId);
+  if (input.files.length > 0) {
+    info.textContent = input.files[0].name + '  (' + fmtSize(input.files[0].size) + ')';
+  } else {
+    info.textContent = '';
+  }
+}
+
+// Click-to-browse: open file picker when drop zone is clicked
+document.getElementById('enc-drop').addEventListener('click', () =>
+  document.getElementById('enc-file').click());
+document.getElementById('dec-drop').addEventListener('click', () =>
+  document.getElementById('dec-file').click());
+
+// Drag-and-drop helpers
+function onDragOver(e, zoneId) {
+  e.preventDefault();
+  document.getElementById(zoneId).classList.add('over');
+}
+function onDragLeave(zoneId) {
+  document.getElementById(zoneId).classList.remove('over');
+}
+function onDrop(e, inputId, infoId) {
+  e.preventDefault();
+  const zone  = e.currentTarget;
+  zone.classList.remove('over');
+  const input = document.getElementById(inputId);
+  const dt    = e.dataTransfer;
+  if (dt.files.length) {
+    // Assign files to hidden input via DataTransfer
+    try {
+      input.files = dt.files;
+    } catch (_) {
+      // Some browsers block setting .files directly; use a workaround
+      const transfer = new DataTransfer();
+      transfer.items.add(dt.files[0]);
+      input.files = transfer.files;
+    }
+    showFileInfo(input, infoId);
+  }
+}
+
+// ── Crypto helpers ───────────────────────────────────────────────────────────
+
+async function deriveKey(password, salt) {
+  const mat = await crypto.subtle.importKey(
+    'raw', new TextEncoder().encode(password),
+    { name: 'PBKDF2' }, false, ['deriveKey']
+  );
+  return crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt, iterations: 250000, hash: 'SHA-256' },
+    mat, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']
+  );
+}
+
+function downloadBlob(data, filename, mime='application/octet-stream') {
+  const url = URL.createObjectURL(new Blob([data], { type: mime }));
+  const a   = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
+// ── Encrypt ──────────────────────────────────────────────────────────────────
+
+async function doEncrypt() {
+  const file = document.getElementById('enc-file').files[0];
+  const pass = document.getElementById('enc-pass').value;
+
+  if (!file) return showStatus('enc-status', 'Please select a file.', true);
+  if (!pass) return showStatus('enc-status', 'Please enter a password.', true);
+
+  setLoading('enc-btn', true);
+
+  try {
+    const salt      = crypto.getRandomValues(new Uint8Array(16));
+    const iv        = crypto.getRandomValues(new Uint8Array(12));
+    const key       = await deriveKey(pass, salt);
+    const fileBuf   = await file.arrayBuffer();
+    const ct        = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, fileBuf));
+
+    // Encode original filename
+    const nameBytes = new TextEncoder().encode(file.name);
+    const nameLen   = nameBytes.length;
+
+    // Build .aegis binary: [magic 4B][salt 16B][iv 12B][nameLen 2B][name NB][ciphertext]
+    const total   = 4 + 16 + 12 + 2 + nameLen + ct.length;
+    const payload = new Uint8Array(total);
+    let   off     = 0;
+
+    payload.set(MAGIC, off);         off += 4;
+    payload.set(salt,  off);         off += 16;
+    payload.set(iv,    off);         off += 12;
+    payload[off]   = (nameLen >> 8) & 0xFF;
+    payload[off+1] =  nameLen       & 0xFF; off += 2;
+    payload.set(nameBytes, off);     off += nameLen;
+    payload.set(ct, off);
+
+    downloadBlob(payload, file.name + '.aegis');
+    showStatus('enc-status', `✔ Encrypted and downloaded as "${file.name}.aegis"`, false);
+  } catch (e) {
+    showStatus('enc-status', 'Encryption failed: ' + e.message, true);
+  } finally {
+    setLoading('enc-btn', false);
+  }
+}
+
+// ── Decrypt ──────────────────────────────────────────────────────────────────
+
+async function doDecrypt() {
+  const file = document.getElementById('dec-file').files[0];
+  const pass = document.getElementById('dec-pass').value;
+
+  if (!file) return showStatus('dec-status', 'Please select a .aegis file.', true);
+  if (!pass) return showStatus('dec-status', 'Please enter the password.', true);
+
+  setLoading('dec-btn', true);
+
+  try {
+    const buf     = await file.arrayBuffer();
+    const payload = new Uint8Array(buf);
+
+    // Verify magic
+    for (let i = 0; i < 4; i++) {
+      if (payload[i] !== MAGIC[i])
+        throw new Error('Not a valid .aegis file (magic header mismatch).');
+    }
+
+    let off = 4;
+    const salt    = payload.slice(off, off+16); off += 16;
+    const iv      = payload.slice(off, off+12); off += 12;
+    const nameLen = (payload[off] << 8) | payload[off+1]; off += 2;
+
+    if (nameLen < 1 || nameLen > 512) throw new Error('Corrupted .aegis file (invalid filename length).');
+
+    const originalName = new TextDecoder().decode(payload.slice(off, off+nameLen));
+    off += nameLen;
+    const ct = payload.slice(off);
+
+    const key   = await deriveKey(pass, salt);
+    const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ct);
+
+    downloadBlob(plain, originalName);
+    showStatus('dec-status', `✔ Decrypted and restored as "${originalName}"`, false);
+  } catch (e) {
+    const msg = e.message.includes('magic')
+      ? e.message
+      : 'Decryption failed — wrong password or the file is corrupted.';
+    showStatus('dec-status', msg, true);
+  } finally {
+    setLoading('dec-btn', false);
+  }
+}
+</script>
+</body>
+</html>

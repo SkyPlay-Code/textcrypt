@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aegis Suite - Advanced Cryptography Toolkit</title>
+    
+    <!-- PWA Manifest & Styles -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0f1115">
+    <link rel="stylesheet" href="styles.css">
+    <script src="utils.js"></script>
+    
+    <style>
+        /* Force the main-content wrapper to flush tightly against the iframe */
+        .main-content { 
+            padding: 0 !important; 
+            overflow: hidden !important; 
+        }
+        
+        #main-frame { 
+            width: 100%; 
+            height: 100%; 
+            border: none; 
+            display: block; 
+            background: var(--bg); 
+        }
+
+        /* Adjust mobile nav layout to not hide iframe bottom */
+        @media (max-width: 768px) {
+            .main-content { padding-bottom: 60px !important; } 
+            .nav-group-title { display: none; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Security Top Bar -->
+    <div class="top-bar">
+        🔒 All operations are local — zero network requests
+    </div>
+
+    <div class="app-container">
+        
+        <!-- Sidebar Navigation -->
+        <div class="sidebar">
+            <div class="sidebar-brand">
+                🛡️ Aegis Suite
+            </div>
+            
+            <div class="nav-group">
+                <div class="nav-group-title">1. Steganography</div>
+                <a class="nav-link active" data-src="section1_steganography.html">Steganography Suite</a>
+            </div>
+
+            <div class="nav-group">
+                <div class="nav-group-title">2. Symmetric Encryption</div>
+                <a class="nav-link" data-src="section2a_aes.html">AES-256-GCM</a>
+                <a class="nav-link" data-src="section2b_chacha20.html">ChaCha20-Poly1305</a>
+                <a class="nav-link" data-src="section2c_cascade.html">Cascade Encryptor</a>
+                <a class="nav-link" data-src="section2d_file_vault.html">File Vault (.aegis)</a>
+            </div>
+
+            <div class="nav-group">
+                <div class="nav-group-title">3. Asymmetric / PKI</div>
+                <a class="nav-link" data-src="section3a_rsa.html">RSA-4096 Key Pair</a>
+                <a class="nav-link" data-src="section3b_ecdh.html">ECDH Key Exchange</a>
+                <a class="nav-link" data-src="section3c_ecdsa.html">ECDSA Sign & Verify</a>
+            </div>
+
+            <div class="nav-group">
+                <div class="nav-group-title">4. Hashing & Integrity</div>
+                <a class="nav-link" data-src="section4a_multihash.html">Multi-Hash Tool</a>
+                <a class="nav-link" data-src="section4b_hmac.html">HMAC Generator</a>
+                <a class="nav-link" data-src="section4c_pwhasher.html">Password Hasher</a>
+                <a class="nav-link" data-src="section4d_integrity.html">File Integrity Checker</a>
+            </div>
+
+            <div class="nav-group">
+                <div class="nav-group-title">5. Passwords</div>
+                <a class="nav-link" data-src="section5a_pwgen.html">Secure Generator</a>
+                <a class="nav-link" data-src="section5b_diceware.html">Diceware Passphrase</a>
+                <a class="nav-link" data-src="section5c_analyzer.html">Strength Analyzer</a>
+            </div>
+
+            <div class="nav-group">
+                <div class="nav-group-title">6. Encoding & Obfuscation</div>
+                <a class="nav-link" data-src="section6a_encoder.html">Universal Encoder</a>
+                <a class="nav-link" data-src="section6b_homoglyph.html">Homoglyph Text</a>
+            </div>
+
+            <div class="nav-group">
+                <div class="nav-group-title">7. Secrets & Splitting</div>
+                <a class="nav-link" data-src="section7a_otp.html">One-Time Pad</a>
+                <a class="nav-link" data-src="section7b_shamir.html">Shamir's Sharing</a>
+                <a class="nav-link" data-src="section7c_vault.html">Deniability Vault</a>
+            </div>
+
+            <div class="nav-group">
+                <div class="nav-group-title">8. Analysis & Forensics</div>
+                <a class="nav-link" data-src="section8a_entropy.html">Entropy Visualizer</a>
+                <a class="nav-link" data-src="section8b_hexdump.html">Hex Dump Viewer</a>
+                <a class="nav-link" data-src="section8c_stego.html">LSB Stego Detector</a>
+            </div>
+
+            <div class="nav-group">
+                <div class="nav-group-title">9. Utilities</div>
+                <a class="nav-link" data-src="section9a_totp.html">TOTP / 2FA Generator</a>
+                <a class="nav-link" data-src="section9b_uuid.html">Crypto UUIDs</a>
+                <a class="nav-link" data-src="section9c_metadata.html">Metadata Stripper</a>
+            </div>
+
+            <!-- Global Actions -->
+            <div style="padding: 20px;">
+                <button class="btn btn-panic" onclick="triggerPanic()">⚠️ Panic Wipe</button>
+            </div>
+
+            <!-- Global Footer -->
+            <div class="footer">
+                <div>Session Operations: <span id="session-counter" style="color:var(--primary); font-weight:bold;">0</span></div>
+                <div style="margin-top: 6px; opacity: 0.6;">Memory cleared on tab close</div>
+            </div>
+        </div>
+        
+        <!-- Dynamic Tool Renderer -->
+        <div class="main-content">
+            <iframe id="main-frame" src="section1_steganography.html" title="Tool Interface"></iframe>
+        </div>
+
+    </div>
+
+    <script>
+        const links = document.querySelectorAll('.nav-link');
+        const iframe = document.getElementById('main-frame');
+
+        // 1. Sidebar Navigation
+        links.forEach(link => {
+            link.addEventListener('click', (e) => {
+                links.forEach(l => l.classList.remove('active'));
+                e.currentTarget.classList.add('active');
+                
+                // Update iframe source
+                iframe.src = e.currentTarget.getAttribute('data-src');
+                
+                // Auto-scroll sidebar logic for mobile devices
+                if(window.innerWidth <= 768) {
+                    e.currentTarget.scrollIntoView({ behavior: 'smooth', inline: 'center' });
+                }
+            });
+        });
+
+        // 2. Iframe Hooking (Counter Syncing)
+        // Whenever a new tool loads in the iframe, we override its incrementOp function 
+        // to report back up to this master index shell.
+        iframe.onload = () => {
+            try {
+                if (iframe.contentWindow.Aegis) {
+                    iframe.contentWindow.Aegis.incrementOp = function() {
+                        this.sessionOperations++;
+                        window.parent.Aegis.incrementOp(); // Triggers the counter in index.html
+                    };
+                }
+            } catch(err) {
+                console.warn("Local file:// cross-origin restriction prevented session counter sync. Use a local HTTP server for full functionality.");
+            }
+        };
+
+        // 3. Global Panic Button
+        function triggerPanic() {
+            try {
+                if (iframe.contentWindow.Aegis && iframe.contentWindow.Aegis.panicWipe) {
+                    iframe.contentWindow.Aegis.panicWipe();
+                } else {
+                    iframe.src = iframe.src; // Forcible memory flush
+                    alert("PANIC WIPE EXECUTED:\nTool memory dumped and reloaded.");
+                }
+            } catch(err) {
+                iframe.src = iframe.src;
+                alert("PANIC WIPE EXECUTED:\nTool memory dumped and reloaded.");
+            }
+        }
+
+        // 4. PWA Registration
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js')
+                    .then(reg => console.log('Aegis SW Registered! Offline capability ready.', reg))
+                    .catch(err => console.error('Aegis SW Registration failed:', err));
+            });
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aegis · 6b — Homoglyph Generator</title>
+<style>
+  :root {
+    --bg:#0f1115; --panel:#1a1d24; --border:#2a2e39;
+    --primary:#3b82f6; --primary-hover:#2563eb;
+    --text:#e2e8f0; --text-muted:#94a3b8;
+    --error:#ef4444; --success:#22c55e; --warning:#f59e0b;
+    --mono:'Fira Code','Courier New',monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',system-ui,sans-serif;}
+  body{background:var(--bg);color:var(--text);padding:30px;min-height:100vh;}
+  h2{font-size:1.4rem;margin-bottom:6px;}
+  .subtitle{color:var(--text-muted);font-size:.85rem;margin-bottom:24px;}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:24px;max-width:820px;margin:0 auto 28px;}
+  .card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px;}
+  .card-header h3{font-size:1.1rem;margin:0;}
+  .badge{padding:3px 10px;border-radius:20px;font-size:.7rem;font-weight:700;text-transform:uppercase;}
+  .badge.warn{background:rgba(245,158,11,.15);color:var(--warning);}
+  .badge.secure{background:rgba(34,197,94,.15);color:var(--success);}
+
+  .fg{margin-bottom:18px;}
+  label{display:block;margin-bottom:7px;font-size:.85rem;color:var(--text-muted);font-weight:500;}
+  textarea,input[type=text]{width:100%;padding:11px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:.9rem;resize:vertical;transition:border-color .2s;}
+  textarea:focus,input:focus{outline:none;border-color:var(--primary);}
+  select{padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:.88rem;cursor:pointer;}
+  select:focus{outline:none;border-color:var(--primary);}
+
+  /* Script selector */
+  .script-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:18px;}
+  .script-tog{display:flex;align-items:center;gap:8px;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;cursor:pointer;transition:.15s;user-select:none;}
+  .script-tog:hover{border-color:var(--primary);}
+  .script-tog.on{border-color:var(--primary);background:rgba(59,130,246,.08);}
+  .script-tog input{accent-color:var(--primary);width:14px;height:14px;flex-shrink:0;}
+  .script-name{font-size:.83rem;font-weight:600;}
+  .script-sample{font-size:.72rem;color:var(--text-muted);margin-top:1px;}
+
+  /* Intensity slider */
+  .slider-row{display:flex;align-items:center;gap:12px;}
+  .slider-row input[type=range]{flex:1;accent-color:var(--primary);height:6px;}
+  .slider-pct{font-family:var(--mono);font-size:.9rem;font-weight:700;color:var(--primary);min-width:36px;}
+
+  .out-box{font-family:'Segoe UI',system-ui,sans-serif;font-size:1rem;background:var(--bg);border:1px solid var(--border);padding:14px;border-radius:6px;word-break:break-word;min-height:60px;line-height:1.7;white-space:pre-wrap;}
+  .out-box-mono{font-family:var(--mono);font-size:.82rem;background:var(--bg);border:1px solid var(--border);padding:12px;border-radius:6px;word-break:break-all;white-space:pre-wrap;}
+
+  .btn{display:inline-flex;align-items:center;gap:7px;padding:10px 18px;background:var(--primary);color:#fff;border:none;border-radius:6px;font-size:.9rem;font-weight:600;cursor:pointer;transition:background .2s;}
+  .btn:hover{background:var(--primary-hover);}
+  .btn-sm{background:transparent;border:1px solid var(--border);color:var(--text);padding:7px 13px;font-size:.82rem;}
+  .btn-sm:hover{background:var(--border);}
+  .btn-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
+
+  .status{margin-top:10px;padding:9px 13px;border-radius:6px;font-size:.83rem;display:none;}
+  .status.ok{background:rgba(34,197,94,.1);color:var(--success);border:1px solid rgba(34,197,94,.25);display:block;}
+  .status.err{background:rgba(239,68,68,.1);color:var(--error);border:1px solid rgba(239,68,68,.25);display:block;}
+
+  /* Char map */
+  .char-map{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;}
+  .char-pair{display:flex;align-items:center;gap:4px;padding:4px 9px;background:var(--bg);border:1px solid var(--border);border-radius:5px;font-size:.78rem;}
+  .cp-orig{color:var(--text-muted);}
+  .cp-arrow{color:var(--border);font-size:.65rem;}
+  .cp-repl{color:var(--primary);font-size:.85rem;}
+  .cp-script{font-size:.65rem;color:var(--text-muted);margin-left:2px;}
+
+  /* Stats */
+  .stats-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;}
+  .stat-pill{padding:5px 12px;background:var(--bg);border:1px solid var(--border);border-radius:20px;font-size:.78rem;}
+  .stat-pill span{font-weight:700;color:var(--primary);}
+
+  /* Reverse analysis */
+  .rev-row{background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:10px 13px;margin-bottom:8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+  .rev-char{font-size:1.1rem;min-width:28px;text-align:center;}
+  .rev-info{font-size:.78rem;color:var(--text-muted);flex:1;}
+  .rev-cp{font-family:var(--mono);font-size:.75rem;color:var(--primary);}
+
+  .notice{padding:11px 14px;border-radius:6px;font-size:.82rem;background:rgba(245,158,11,.07);color:var(--warning);border:1px solid rgba(245,158,11,.2);margin-bottom:18px;line-height:1.5;}
+
+  details{margin-top:22px;padding:14px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:6px;font-size:.83rem;color:var(--text-muted);}
+  details summary{cursor:pointer;font-weight:600;color:var(--text);}
+  details p{margin-top:10px;line-height:1.6;}
+  code{background:rgba(255,255,255,.07);padding:1px 5px;border-radius:3px;font-family:var(--mono);}
+</style>
+</head>
+<body>
+<div style="max-width:820px;margin:0 auto;">
+  <h2>6b — Homoglyph Text Generator</h2>
+  <p class="subtitle">Replace Latin characters with visually identical Unicode lookalikes · Cyrillic · Greek · fullwidth</p>
+
+  <!-- Generator card -->
+  <div class="card">
+    <div class="card-header">
+      <h3>Generator</h3>
+      <span class="badge warn">⚠ Unicode Trickery</span>
+    </div>
+
+    <div class="notice">
+      ⚠️ Homoglyph substitution is a dual-use technique. It is used in security research, IDN homograph
+      attack awareness, and steganographic obfuscation. The output <em>looks</em> identical but is a
+      completely different string at the byte level — it will fool visual scanners but fail string
+      comparisons.
+    </div>
+
+    <div class="fg">
+      <label>Input Text</label>
+      <textarea id="inp" rows="4" placeholder="Enter text to transform…" oninput="onInput()"></textarea>
+    </div>
+
+    <!-- Script selection -->
+    <div class="fg">
+      <label>Replacement Scripts</label>
+      <div class="script-grid">
+        <label class="script-tog on" id="tog-cyrillic">
+          <input type="checkbox" id="cb-cyrillic" checked onchange="onInput()">
+          <div><div class="script-name">Cyrillic</div><div class="script-sample">а е о р с х…</div></div>
+        </label>
+        <label class="script-tog on" id="tog-greek">
+          <input type="checkbox" id="cb-greek" checked onchange="onInput()">
+          <div><div class="script-name">Greek</div><div class="script-sample">ο ν κ τ υ…</div></div>
+        </label>
+        <label class="script-tog on" id="tog-fullwidth">
+          <input type="checkbox" id="cb-fullwidth" checked onchange="onInput()">
+          <div><div class="script-name">Fullwidth</div><div class="script-sample">Ａ Ｂ Ｃ…</div></div>
+        </label>
+        <label class="script-tog" id="tog-latin-ext">
+          <input type="checkbox" id="cb-latin-ext" onchange="onInput()">
+          <div><div class="script-name">Latin Extended</div><div class="script-sample">ẚ ƅ ƈ ԁ…</div></div>
+        </label>
+        <label class="script-tog" id="tog-math">
+          <input type="checkbox" id="cb-math" onchange="onInput()">
+          <div><div class="script-name">Math Symbols</div><div class="script-sample">𝐚 𝐛 𝐜…</div></div>
+        </label>
+      </div>
+    </div>
+
+    <!-- Intensity -->
+    <div class="fg">
+      <label>Substitution Intensity — <span id="int-lbl" style="color:var(--primary);font-weight:700;">50%</span> of eligible characters</label>
+      <div class="slider-row">
+        <span style="font-size:.78rem;color:var(--text-muted);">Low</span>
+        <input type="range" id="intensity" min="0" max="100" value="50" oninput="onIntensity()">
+        <span style="font-size:.78rem;color:var(--text-muted);">Max</span>
+        <span class="slider-pct" id="int-pct">50%</span>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-row" id="stats-row"></div>
+
+    <!-- Output -->
+    <div class="fg">
+      <label>Homoglyph Output (looks identical visually)</label>
+      <div class="out-box" id="out-display"></div>
+      <div class="fg" style="margin-top:8px;">
+        <label style="font-size:.75rem;">Raw Unicode (for inspection)</label>
+        <div class="out-box-mono" id="out-unicode"></div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-sm" id="copy-out" onclick="copyOut()">Copy Output</button>
+        <button class="btn btn-sm" onclick="regenerate()">🎲 Re-randomize</button>
+        <button class="btn btn-sm" onclick="copyRaw()">Copy Unicode Escapes</button>
+      </div>
+    </div>
+    <div id="gen-status" class="status"></div>
+
+    <!-- Substitution map -->
+    <div class="fg" style="margin-top:4px;">
+      <label>Substitutions Applied</label>
+      <div class="char-map" id="char-map"></div>
+    </div>
+
+    <details>
+      <summary>How homoglyphs work</summary>
+      <p>
+        A <strong>homoglyph</strong> is a character that looks visually identical (or nearly so) to another
+        character in a different Unicode script. For example, the Cyrillic letter <code>а</code> (U+0430)
+        looks the same as the Latin <code>a</code> (U+0061) but is a completely different code point.
+        This is the basis of <strong>IDN homograph attacks</strong>, where a domain like
+        <code>pаypal.com</code> (Cyrillic а) can look identical to <code>paypal.com</code> in a browser
+        address bar. The technique is used here for educational/security research purposes: understanding
+        how visually spoofed text can fool humans but fail system-level string comparisons.
+      </p>
+    </details>
+  </div>
+
+  <!-- Reverse analysis card -->
+  <div class="card">
+    <div class="card-header">
+      <h3>Homoglyph Detector</h3>
+      <span class="badge secure">Analyze</span>
+    </div>
+    <p style="font-size:.83rem;color:var(--text-muted);margin-bottom:16px;">
+      Paste suspicious text to reveal hidden non-Latin characters and their Unicode code points.
+    </p>
+    <div class="fg">
+      <textarea id="rev-inp" rows="4" placeholder="Paste text to analyze for hidden homoglyphs…"
+                oninput="analyzeText()"></textarea>
+    </div>
+    <div id="rev-results">
+      <p style="font-size:.83rem;color:var(--text-muted);">Enter text above to scan for non-standard characters.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Homoglyph map ─────────────────────────────────────────────────────────────
+// Each entry: [original_char, [substitutes...], script_label]
+const GLYPHS_CYRILLIC = [
+  ['a', ['а'], 'Cyr'],  // U+0430
+  ['e', ['е'], 'Cyr'],  // U+0435
+  ['o', ['о'], 'Cyr'],  // U+043E
+  ['p', ['р'], 'Cyr'],  // U+0440
+  ['c', ['с'], 'Cyr'],  // U+0441
+  ['x', ['х'], 'Cyr'],  // U+0445
+  ['y', ['у'], 'Cyr'],  // U+0443
+  ['A', ['А'], 'Cyr'],  // U+0410
+  ['B', ['В'], 'Cyr'],  // U+0412
+  ['C', ['С'], 'Cyr'],  // U+0421
+  ['E', ['Е'], 'Cyr'],  // U+0415
+  ['H', ['Н'], 'Cyr'],  // U+041D
+  ['K', ['К'], 'Cyr'],  // U+041A
+  ['M', ['М'], 'Cyr'],  // U+041C
+  ['O', ['О'], 'Cyr'],  // U+041E
+  ['P', ['Р'], 'Cyr'],  // U+0420
+  ['T', ['Т'], 'Cyr'],  // U+0422
+  ['X', ['Х'], 'Cyr'],  // U+0425
+  ['Y', ['Ү'], 'Cyr'],  // U+04AE
+];
+const GLYPHS_GREEK = [
+  ['o', ['ο'], 'Grk'],  // U+03BF GREEK SMALL LETTER OMICRON
+  ['O', ['Ο'], 'Grk'],  // U+039F GREEK CAPITAL LETTER OMICRON
+  ['n', ['ν'], 'Grk'],  // U+03BD GREEK SMALL LETTER NU
+  ['v', ['ν'], 'Grk'],  // same
+  ['i', ['ι'], 'Grk'],  // U+03B9 GREEK SMALL LETTER IOTA
+  ['u', ['υ'], 'Grk'],  // U+03C5 GREEK SMALL LETTER UPSILON
+  ['k', ['κ'], 'Grk'],  // U+03BA
+  ['t', ['τ'], 'Grk'],  // U+03C4
+  ['A', ['Α'], 'Grk'],  // U+0391
+  ['B', ['Β'], 'Grk'],  // U+0392
+  ['E', ['Ε'], 'Grk'],  // U+0395
+  ['H', ['Η'], 'Grk'],  // U+0397
+  ['I', ['Ι'], 'Grk'],  // U+0399
+  ['K', ['Κ'], 'Grk'],  // U+039A
+  ['M', ['Μ'], 'Grk'],  // U+039C
+  ['N', ['Ν'], 'Grk'],  // U+039D
+  ['O', ['Ο'], 'Grk'],  // U+039F
+  ['T', ['Τ'], 'Grk'],  // U+03A4
+  ['Y', ['Υ'], 'Grk'],  // U+03A5
+  ['Z', ['Ζ'], 'Grk'],  // U+0396
+];
+const GLYPHS_FULLWIDTH = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'.split('').map((c, i) => {
+  // Fullwidth: A=U+FF21 … Z=U+FF3A, a=U+FF41 … z=U+FF5A, 0=U+FF10
+  const code = c >= 'A' && c <= 'Z' ? 0xFF21 + c.charCodeAt(0) - 65
+             : c >= 'a' && c <= 'z' ? 0xFF41 + c.charCodeAt(0) - 97
+             : 0xFF10 + c.charCodeAt(0) - 48;
+  return [c, [String.fromCodePoint(code)], 'FW'];
+});
+const GLYPHS_LATIN_EXT = [
+  ['a', ['ɑ','ɐ'], 'Lat+'],
+  ['b', ['ƅ','Ƅ'], 'Lat+'],
+  ['c', ['ƈ'], 'Lat+'],
+  ['d', ['ԁ','ȡ'], 'Lat+'],
+  ['e', ['ɇ'], 'Lat+'],
+  ['g', ['ɡ'], 'Lat+'],
+  ['h', ['ħ','ƕ'], 'Lat+'],
+  ['i', ['ı','ɩ'], 'Lat+'],
+  ['j', ['ɟ'], 'Lat+'],
+  ['l', ['ɭ','ȴ'], 'Lat+'],
+  ['n', ['ɲ','ŋ'], 'Lat+'],
+  ['o', ['ɵ','ȯ'], 'Lat+'],
+  ['r', ['ɾ','ɽ'], 'Lat+'],
+  ['s', ['ʂ'], 'Lat+'],
+  ['t', ['ƭ','ʈ'], 'Lat+'],
+  ['u', ['ʋ','ȗ'], 'Lat+'],
+  ['v', ['ʋ'], 'Lat+'],
+  ['w', ['ɯ'], 'Lat+'],
+  ['y', ['ʏ'], 'Lat+'],
+  ['z', ['ȥ'], 'Lat+'],
+];
+const GLYPHS_MATH = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map((c, i) => {
+  // Mathematical Bold: a=U+1D41A, A=U+1D400
+  const code = c >= 'a' && c <= 'z' ? 0x1D41A + c.charCodeAt(0) - 97
+             : 0x1D400 + c.charCodeAt(0) - 65;
+  return [c, [String.fromCodePoint(code)], 'Math'];
+});
+
+function getActiveGlyphs() {
+  const map = new Map(); // char → [{sub,script}]
+
+  function add(list) {
+    for (const [orig, subs, script] of list) {
+      if (!map.has(orig)) map.set(orig, []);
+      for (const s of subs) map.get(orig).push({ sub: s, script });
+    }
+  }
+
+  if (document.getElementById('cb-cyrillic').checked)  add(GLYPHS_CYRILLIC);
+  if (document.getElementById('cb-greek').checked)     add(GLYPHS_GREEK);
+  if (document.getElementById('cb-fullwidth').checked) add(GLYPHS_FULLWIDTH);
+  if (document.getElementById('cb-latin-ext').checked) add(GLYPHS_LATIN_EXT);
+  if (document.getElementById('cb-math').checked)      add(GLYPHS_MATH);
+
+  return map;
+}
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let _currentOutput  = '';
+let _currentMapping = []; // [{orig, sub, script, idx}]
+
+// ── Intensity ─────────────────────────────────────────────────────────────────
+function onIntensity() {
+  const v = document.getElementById('intensity').value;
+  document.getElementById('int-lbl').textContent = v + '%';
+  document.getElementById('int-pct').textContent = v + '%';
+  onInput();
+}
+
+function onInput() {
+  document.getElementById('tog-cyrillic').classList.toggle('on', document.getElementById('cb-cyrillic').checked);
+  document.getElementById('tog-greek').classList.toggle('on', document.getElementById('cb-greek').checked);
+  document.getElementById('tog-fullwidth').classList.toggle('on', document.getElementById('cb-fullwidth').checked);
+  document.getElementById('tog-latin-ext').classList.toggle('on', document.getElementById('cb-latin-ext').checked);
+  document.getElementById('tog-math').classList.toggle('on', document.getElementById('cb-math').checked);
+  generate();
+}
+
+function regenerate() { generate(); }
+
+function generate() {
+  const text      = document.getElementById('inp').value;
+  const intensity = parseInt(document.getElementById('intensity').value) / 100;
+  const glyphs    = getActiveGlyphs();
+
+  if (!text) {
+    document.getElementById('out-display').textContent  = '';
+    document.getElementById('out-unicode').textContent  = '';
+    document.getElementById('stats-row').innerHTML      = '';
+    document.getElementById('char-map').innerHTML       = '';
+    _currentOutput  = '';
+    _currentMapping = [];
+    return;
+  }
+
+  // Seed determinism using simple shuffle per generation call (fresh random each time)
+  let result  = '';
+  let mapping = [];
+  let subCount= 0;
+
+  for (const char of text) {
+    const opts = glyphs.get(char);
+    if (opts && opts.length > 0 && Math.random() < intensity) {
+      const chosen = opts[Math.floor(Math.random() * opts.length)];
+      result += chosen.sub;
+      mapping.push({ orig: char, sub: chosen.sub, script: chosen.script });
+      subCount++;
+    } else {
+      result += char;
+    }
+  }
+
+  _currentOutput  = result;
+  _currentMapping = mapping;
+
+  // Display output
+  document.getElementById('out-display').textContent = result;
+
+  // Unicode escape representation
+  const escapes = [...result].map(c => {
+    const cp = c.codePointAt(0);
+    return cp > 0x7E ? `\\u{${cp.toString(16).toUpperCase()}}` : c;
+  }).join('');
+  document.getElementById('out-unicode').textContent = escapes;
+
+  // Stats
+  const eligible = [...text].filter(c => glyphs.has(c)).length;
+  document.getElementById('stats-row').innerHTML = `
+    <span class="stat-pill">Total chars: <span>${text.length}</span></span>
+    <span class="stat-pill">Eligible: <span>${eligible}</span></span>
+    <span class="stat-pill">Substituted: <span>${subCount}</span></span>
+    <span class="stat-pill">Rate: <span>${eligible > 0 ? Math.round(subCount/eligible*100) : 0}%</span></span>
+  `;
+
+  // Char map (unique pairs only)
+  const seen = new Set();
+  const mapItems = mapping.filter(m => {
+    const key = m.orig + '→' + m.sub;
+    if (seen.has(key)) return false;
+    seen.add(key); return true;
+  });
+  document.getElementById('char-map').innerHTML = mapItems.map(m =>
+    `<div class="char-pair">
+      <span class="cp-orig">${m.orig}</span>
+      <span class="cp-arrow">→</span>
+      <span class="cp-repl">${m.sub}</span>
+      <span class="cp-script">[${m.script} U+${m.sub.codePointAt(0).toString(16).toUpperCase().padStart(4,'0')}]</span>
+    </div>`
+  ).join('');
+}
+
+const _ct = {};
+function copyOut() {
+  if (!_currentOutput) return;
+  navigator.clipboard.writeText(_currentOutput);
+  const btn = document.getElementById('copy-out'), orig = btn.textContent;
+  if (_ct.out) clearInterval(_ct.out);
+  let t = 30; btn.textContent = t + 's';
+  _ct.out = setInterval(() => {
+    t--;
+    if (t <= 0) { clearInterval(_ct.out); navigator.clipboard.writeText(''); btn.textContent = orig; }
+    else btn.textContent = t + 's';
+  }, 1000);
+}
+
+function copyRaw() {
+  const text = document.getElementById('out-unicode').textContent;
+  if (text) navigator.clipboard.writeText(text);
+}
+
+// ── Reverse detector ──────────────────────────────────────────────────────────
+function analyzeText() {
+  const text = document.getElementById('rev-inp').value;
+  const res  = document.getElementById('rev-results');
+  if (!text) { res.innerHTML = '<p style="font-size:.83rem;color:var(--text-muted);">Enter text above to scan.</p>'; return; }
+
+  const suspicious = [];
+  for (const char of text) {
+    const cp   = char.codePointAt(0);
+    const cat  = getScriptCategory(cp);
+    if (cat !== 'Basic Latin' && cat !== 'Punctuation/Symbol' && cat !== 'Digit' && cat !== 'Whitespace') {
+      suspicious.push({ char, cp, cat });
+    }
+  }
+
+  if (!suspicious.length) {
+    res.innerHTML = '<div style="padding:12px;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.2);border-radius:6px;color:var(--success);font-size:.85rem;">✅ No non-Latin characters detected. Text appears clean.</div>';
+    return;
+  }
+
+  res.innerHTML = `
+    <div style="margin-bottom:10px;font-size:.82rem;color:var(--warning);">⚠️ Found <strong>${suspicious.length}</strong> non-standard character(s):</div>
+    ${suspicious.map(s => `
+      <div class="rev-row">
+        <span class="rev-char">${s.char}</span>
+        <div class="rev-info">
+          <span class="rev-cp">U+${s.cp.toString(16).toUpperCase().padStart(4,'0')}</span>
+          &nbsp;·&nbsp; ${s.cat}
+          &nbsp;·&nbsp; Looks like: <strong>${getLatin(s.char) || '?'}</strong>
+        </div>
+      </div>
+    `).join('')}
+  `;
+}
+
+function getScriptCategory(cp) {
+  if (cp >= 0x0041 && cp <= 0x007A) return 'Basic Latin';
+  if (cp >= 0x0030 && cp <= 0x0039) return 'Digit';
+  if (cp < 0x0020 || cp === 0x0020 || cp === 0x000A || cp === 0x000D) return 'Whitespace';
+  if (cp < 0x00C0) return 'Punctuation/Symbol';
+  if (cp >= 0x0400 && cp <= 0x04FF) return 'Cyrillic';
+  if (cp >= 0x0370 && cp <= 0x03FF) return 'Greek';
+  if (cp >= 0xFF00 && cp <= 0xFFEF) return 'Fullwidth';
+  if (cp >= 0x1D400 && cp <= 0x1D7FF) return 'Mathematical';
+  if (cp >= 0x0100 && cp <= 0x024F) return 'Latin Extended';
+  return `Unicode U+${cp.toString(16).toUpperCase().padStart(4,'0')}`;
+}
+
+// Build a reverse lookup: substitute → original Latin
+const _revMap = new Map();
+function buildRevMap() {
+  for (const [orig, subs] of [...GLYPHS_CYRILLIC,...GLYPHS_GREEK,...GLYPHS_FULLWIDTH,...GLYPHS_LATIN_EXT,...GLYPHS_MATH]) {
+    for (const s of subs) _revMap.set(s, orig);
+  }
+}
+buildRevMap();
+function getLatin(c) { return _revMap.get(c) || null; }
+</script>
+</body>
+</html>

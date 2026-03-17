@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aegis · 7b — Shamir's Secret Sharing</title>
+<style>
+  :root {
+    --bg:#0f1115; --panel:#1a1d24; --border:#2a2e39;
+    --primary:#3b82f6; --primary-hover:#2563eb;
+    --text:#e2e8f0; --text-muted:#94a3b8;
+    --error:#ef4444; --success:#22c55e; --warning:#f59e0b;
+    --mono:'Fira Code','Courier New',monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',system-ui,sans-serif;}
+  body{background:var(--bg);color:var(--text);padding:30px;min-height:100vh;}
+  h2{font-size:1.4rem;margin-bottom:6px;}
+  .subtitle{color:var(--text-muted);font-size:.85rem;margin-bottom:24px;}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:24px;max-width:760px;margin:0 auto 28px;}
+  .card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px;}
+  .card-header h3{font-size:1.1rem;margin:0;}
+  .badge{padding:3px 10px;border-radius:20px;font-size:.7rem;font-weight:700;text-transform:uppercase;background:rgba(34,197,94,.15);color:var(--success);}
+  .mode-strip{display:flex;background:#15181e;border-radius:6px;border:1px solid var(--border);overflow:hidden;margin-bottom:22px;}
+  .mode-btn{flex:1;padding:10px;text-align:center;cursor:pointer;color:var(--text-muted);font-size:.85rem;font-weight:600;text-transform:uppercase;transition:.2s;border:none;background:none;}
+  .mode-btn.active{background:var(--panel);color:var(--primary);border-bottom:2px solid var(--primary);}
+  .panel{display:none;} .panel.active{display:block;}
+  .fg{margin-bottom:18px;}
+  label{display:block;margin-bottom:7px;font-size:.85rem;color:var(--text-muted);font-weight:500;}
+  textarea,input[type=text],input[type=number]{width:100%;padding:11px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:.9rem;resize:vertical;transition:border-color .2s;}
+  textarea:focus,input:focus{outline:none;border-color:var(--primary);}
+  textarea.mono{font-family:var(--mono);font-size:.82rem;}
+  .out-box{font-family:var(--mono);font-size:.8rem;background:var(--bg);border:1px solid var(--border);padding:12px;border-radius:6px;word-break:break-all;min-height:50px;white-space:pre-wrap;}
+  .btn{display:inline-flex;align-items:center;gap:7px;padding:10px 18px;background:var(--primary);color:#fff;border:none;border-radius:6px;font-size:.9rem;font-weight:600;cursor:pointer;transition:background .2s;}
+  .btn:hover{background:var(--primary-hover);}
+  .btn:disabled{background:var(--border);color:var(--text-muted);cursor:not-allowed;}
+  .btn-sm{background:transparent;border:1px solid var(--border);color:var(--text);padding:7px 13px;font-size:.82rem;}
+  .btn-sm:hover{background:var(--border);}
+  .btn-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;}
+  .spinner{width:15px;height:15px;border:2px solid rgba(255,255,255,.3);border-radius:50%;border-top-color:#fff;animation:spin .7s linear infinite;display:none;}
+  .btn.loading .spinner{display:inline-block;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .status{margin-top:12px;padding:10px 14px;border-radius:6px;font-size:.85rem;display:none;}
+  .status.ok{background:rgba(34,197,94,.1);color:var(--success);border:1px solid rgba(34,197,94,.25);display:block;}
+  .status.err{background:rgba(239,68,68,.1);color:var(--error);border:1px solid rgba(239,68,68,.25);display:block;}
+  /* K/N inputs */
+  .kn-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px;}
+  @media(max-width:460px){.kn-row{grid-template-columns:1fr;}}
+  .kn-box{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:14px;}
+  .kn-box label{color:var(--primary);font-weight:700;font-size:.82rem;text-transform:uppercase;letter-spacing:.05em;}
+  .kn-box input{margin-top:6px;font-size:1.1rem;font-family:var(--mono);font-weight:700;text-align:center;padding:8px;}
+  .kn-desc{font-size:.73rem;color:var(--text-muted);margin-top:5px;text-align:center;}
+  /* Share cards */
+  .shares-wrap{display:flex;flex-direction:column;gap:8px;margin-top:4px;}
+  .share-card{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px 14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+  .share-num{font-size:.75rem;font-weight:700;color:var(--text-muted);min-width:54px;white-space:nowrap;}
+  .share-val{font-family:var(--mono);font-size:.78rem;flex:1;word-break:break-all;color:var(--text);}
+  .share-copy{background:transparent;border:1px solid var(--border);color:var(--text-muted);padding:5px 10px;border-radius:4px;font-size:.74rem;cursor:pointer;flex-shrink:0;transition:.15s;}
+  .share-copy:hover{border-color:var(--primary);color:var(--primary);}
+  /* Reconstruction input list */
+  .recon-list{display:flex;flex-direction:column;gap:8px;margin-bottom:16px;}
+  .recon-item{display:flex;align-items:center;gap:8px;}
+  .recon-num{font-size:.75rem;color:var(--text-muted);white-space:nowrap;min-width:54px;}
+  .recon-inp{flex:1;font-family:var(--mono);font-size:.82rem;padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);}
+  .recon-inp:focus{outline:none;border-color:var(--primary);}
+  /* Threshold visual */
+  .threshold-vis{padding:12px 16px;border-radius:8px;background:rgba(59,130,246,.06);border:1px solid rgba(59,130,246,.2);font-size:.83rem;margin-bottom:18px;line-height:1.6;}
+  details{margin-top:22px;padding:14px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:6px;font-size:.83rem;color:var(--text-muted);}
+  details summary{cursor:pointer;font-weight:600;color:var(--text);}
+  details p{margin-top:10px;line-height:1.6;}
+  code{background:rgba(255,255,255,.07);padding:1px 5px;border-radius:3px;font-family:var(--mono);}
+</style>
+</head>
+<body>
+<div style="max-width:760px;margin:0 auto;">
+  <h2>7b — Shamir's Secret Sharing</h2>
+  <p class="subtitle">Split any secret into N shares · any K reconstruct it · GF(256) arithmetic · information-theoretically secure</p>
+
+  <div class="card">
+    <div class="card-header">
+      <h3>Secret Splitting</h3>
+      <span class="badge">GF(2⁸)</span>
+    </div>
+
+    <div class="mode-strip">
+      <button class="mode-btn active" id="tab-split"  onclick="setMode('split')">✂️ Split Secret</button>
+      <button class="mode-btn"        id="tab-recon"  onclick="setMode('recon')">🔗 Reconstruct</button>
+    </div>
+
+    <!-- ── SPLIT ──────────────────────────────────── -->
+    <div id="panel-split" class="panel active">
+      <div class="fg">
+        <label>Secret to split</label>
+        <textarea id="split-secret" rows="3" placeholder="Enter the secret string to split into shares…"></textarea>
+      </div>
+
+      <div class="kn-row">
+        <div class="kn-box">
+          <label>K — Threshold</label>
+          <input type="number" id="split-k" value="3" min="2" max="10" oninput="updateVis()">
+          <div class="kn-desc">Minimum shares needed to reconstruct</div>
+        </div>
+        <div class="kn-box">
+          <label>N — Total Shares</label>
+          <input type="number" id="split-n" value="5" min="2" max="20" oninput="updateVis()">
+          <div class="kn-desc">Total number of shares to generate</div>
+        </div>
+      </div>
+
+      <div class="threshold-vis" id="threshold-vis">
+        Any <strong>3</strong> of <strong>5</strong> shares can reconstruct the secret.
+        Fewer than 3 shares reveal <em>zero information</em>.
+      </div>
+
+      <button class="btn" id="split-btn" onclick="doSplit()">
+        <span class="spinner"></span> Split into Shares
+      </button>
+      <div id="split-status" class="status"></div>
+
+      <div id="split-result" style="display:none;margin-top:16px;">
+        <label style="margin-bottom:10px;display:block;">Generated Shares — distribute these separately</label>
+        <div class="shares-wrap" id="shares-list"></div>
+        <div class="btn-row">
+          <button class="btn btn-sm" onclick="downloadShares()">⬇ Download all shares (.txt)</button>
+          <button class="btn btn-sm" onclick="copyAllShares()">Copy all shares</button>
+          <button class="btn btn-sm" onclick="loadSharesToRecon()">→ Load into Reconstruct tab</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── RECONSTRUCT ────────────────────────────── -->
+    <div id="panel-recon" class="panel">
+      <div class="fg">
+        <label>How many shares are you providing?</label>
+        <input type="number" id="recon-k" value="3" min="2" max="20" oninput="renderReconInputs()">
+      </div>
+
+      <div class="recon-list" id="recon-list"></div>
+
+      <button class="btn" id="recon-btn" onclick="doReconstruct()">
+        <span class="spinner"></span> Reconstruct Secret
+      </button>
+      <div id="recon-status" class="status"></div>
+
+      <div class="fg" id="recon-out-wrap" style="display:none;margin-top:16px;">
+        <label>Reconstructed Secret</label>
+        <div class="out-box" id="recon-out"></div>
+        <div class="btn-row">
+          <button class="btn btn-sm" id="recon-copy" onclick="copyText(document.getElementById('recon-out').textContent,'recon-copy')">Copy</button>
+        </div>
+      </div>
+    </div>
+
+    <details>
+      <summary>How Shamir's Secret Sharing works</summary>
+      <p>
+        Shamir's scheme is based on polynomial interpolation. To split a secret with a (K, N) threshold:
+        each byte of the secret becomes the constant term of a random degree-(K-1) polynomial over
+        <strong>GF(2⁸)</strong> (Galois Field with 256 elements, using AES's irreducible polynomial).
+        N points on this polynomial become the N shares. Any K of those points uniquely determine the
+        polynomial via Lagrange interpolation — recovering the secret (constant term).
+        Crucially, <strong>fewer than K shares reveal zero information</strong> about the secret:
+        for any set of fewer than K points, every possible secret value is equally consistent with
+        those points (information-theoretic security, same as a one-time pad).
+        Shares are encoded as <code>aegis-sss-v1:shareIndex:base64(shareBytes)</code>.
+      </p>
+    </details>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// GF(256) arithmetic — AES irreducible polynomial x^8+x^4+x^3+x+1
+// ═══════════════════════════════════════════════════════════════
+const GF_PRIME = 0x11b; // 0b100011011
+
+// Precompute log/exp tables for GF(256) via generator g=3
+const GF_EXP = new Uint8Array(512);
+const GF_LOG = new Uint8Array(256);
+(function buildTables() {
+  let x = 1;
+  for (let i = 0; i < 255; i++) {
+    GF_EXP[i] = x;
+    GF_LOG[x] = i;
+    x <<= 1;
+    if (x & 0x100) x ^= GF_PRIME;
+  }
+  // Duplicate exp table for modular lookups without %255
+  for (let i = 255; i < 512; i++) GF_EXP[i] = GF_EXP[i - 255];
+})();
+
+function gfMul(a, b) {
+  if (a === 0 || b === 0) return 0;
+  return GF_EXP[(GF_LOG[a] + GF_LOG[b]) % 255];
+}
+function gfDiv(a, b) {
+  if (b === 0) throw new Error('GF division by zero');
+  if (a === 0) return 0;
+  return GF_EXP[(GF_LOG[a] - GF_LOG[b] + 255) % 255];
+}
+function gfPow(x, p) {
+  if (x === 0) return 0;
+  return GF_EXP[(GF_LOG[x] * p) % 255];
+}
+
+// Evaluate polynomial at x: coeffs[0]=secret byte, coeffs[1..] random
+function gfPolyEval(coeffs, x) {
+  let result = 0;
+  for (let i = coeffs.length - 1; i >= 0; i--) {
+    result = gfMul(result, x) ^ coeffs[i];
+  }
+  return result;
+}
+
+// ── Shamir split ──────────────────────────────────────────────────────────────
+function shamirSplit(secretBytes, k, n) {
+  if (k < 2 || k > n || n > 255) throw new Error('Invalid (k, n) parameters.');
+  if (k > 10) throw new Error('K must be ≤ 10 to prevent accidental misuse.');
+  if (n > 20) throw new Error('N must be ≤ 20.');
+
+  const numBytes = secretBytes.length;
+  // shares[i] = Uint8Array of length numBytes (share at x = i+1)
+  const shares = Array.from({ length: n }, () => new Uint8Array(numBytes));
+
+  const randCoeffs = new Uint8Array((k - 1) * numBytes);
+  crypto.getRandomValues(randCoeffs);
+
+  for (let byteIdx = 0; byteIdx < numBytes; byteIdx++) {
+    // Polynomial: coeffs[0]=secret, coeffs[1..k-1]=random
+    const coeffs = new Uint8Array(k);
+    coeffs[0] = secretBytes[byteIdx];
+    for (let j = 1; j < k; j++) coeffs[j] = randCoeffs[(k - 1) * byteIdx + (j - 1)];
+
+    for (let shareIdx = 0; shareIdx < n; shareIdx++) {
+      // x coordinates are 1..n (never 0, as f(0) = secret)
+      shares[shareIdx][byteIdx] = gfPolyEval(coeffs, shareIdx + 1);
+    }
+  }
+
+  return shares;
+}
+
+// ── Shamir reconstruct via Lagrange interpolation over GF(256) ───────────────
+function shamirReconstruct(sharePoints) {
+  // sharePoints: [{x: 1-indexed, data: Uint8Array}]
+  if (sharePoints.length < 2) throw new Error('Need at least 2 shares.');
+  const numBytes = sharePoints[0].data.length;
+  const secret   = new Uint8Array(numBytes);
+
+  const xs = sharePoints.map(s => s.x);
+
+  for (let byteIdx = 0; byteIdx < numBytes; byteIdx++) {
+    let val = 0;
+    for (let i = 0; i < sharePoints.length; i++) {
+      let num = sharePoints[i].data[byteIdx]; // y_i
+      let den = 1;
+      for (let j = 0; j < sharePoints.length; j++) {
+        if (i === j) continue;
+        // Lagrange basis: multiply (0 - x_j) / (x_i - x_j)
+        // In GF(256): subtraction = XOR
+        num = gfMul(num, xs[j]); // multiply by x_j (since we evaluate at 0)
+        den = gfMul(den, xs[i] ^ xs[j]);
+      }
+      val ^= gfDiv(num, den);
+    }
+    secret[byteIdx] = val;
+  }
+  return secret;
+}
+
+// ── Encoding / decoding shares ────────────────────────────────────────────────
+// Format: aegis-sss-v1:<shareIndex>:<base64(data)>
+function encodeShare(index, data) {
+  const b64 = btoa(String.fromCharCode(...data));
+  return `aegis-sss-v1:${index}:${b64}`;
+}
+function decodeShare(str) {
+  str = str.trim();
+  const parts = str.split(':');
+  if (parts.length < 3 || parts[0] !== 'aegis-sss-v1')
+    throw new Error(`Invalid share format: "${str.slice(0,30)}…"`);
+  const index = parseInt(parts[1]);
+  const b64   = parts.slice(2).join(':'); // rejoin in case base64 had colons
+  if (isNaN(index) || index < 1 || index > 255)
+    throw new Error('Invalid share index.');
+  const data  = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+  return { x: index, data };
+}
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let _generatedShares = [];
+
+// ── UI ────────────────────────────────────────────────────────────────────────
+function setMode(m) {
+  document.getElementById('panel-split').classList.toggle('active', m === 'split');
+  document.getElementById('panel-recon').classList.toggle('active', m === 'recon');
+  document.getElementById('tab-split').classList.toggle('active',   m === 'split');
+  document.getElementById('tab-recon').classList.toggle('active',   m === 'recon');
+}
+function showStatus(id, msg, isErr) {
+  const el = document.getElementById(id);
+  el.textContent = msg; el.className = 'status ' + (isErr ? 'err' : 'ok');
+  setTimeout(() => { el.style.display = 'none'; }, 8000);
+}
+function setLoading(id, on) {
+  const b = document.getElementById(id); b.disabled = on;
+  on ? b.classList.add('loading') : b.classList.remove('loading');
+}
+const _ct = {};
+function copyText(text, btnId) {
+  text = (text||'').trim(); if (!text) return;
+  navigator.clipboard.writeText(text);
+  const btn = document.getElementById(btnId), orig = btn.textContent;
+  if (_ct[btnId]) clearInterval(_ct[btnId]);
+  let t = 30; btn.textContent = t + 's';
+  _ct[btnId] = setInterval(() => {
+    t--;
+    if (t <= 0) { clearInterval(_ct[btnId]); navigator.clipboard.writeText(''); btn.textContent = orig; }
+    else btn.textContent = t + 's';
+  }, 1000);
+}
+
+function updateVis() {
+  const k = parseInt(document.getElementById('split-k').value) || 3;
+  const n = parseInt(document.getElementById('split-n').value) || 5;
+  document.getElementById('threshold-vis').innerHTML =
+    `Any <strong>${k}</strong> of <strong>${n}</strong> shares can reconstruct the secret.
+     Fewer than <strong>${k}</strong> shares reveal <em>zero information</em> about the secret.`;
+}
+
+// ── Split ─────────────────────────────────────────────────────────────────────
+function doSplit() {
+  const secret = document.getElementById('split-secret').value;
+  const k      = parseInt(document.getElementById('split-k').value);
+  const n      = parseInt(document.getElementById('split-n').value);
+
+  if (!secret) return showStatus('split-status', 'Please enter a secret.', true);
+  if (isNaN(k) || isNaN(n) || k < 2 || n < k)
+    return showStatus('split-status', 'K must be ≥ 2 and N must be ≥ K.', true);
+  if (k > 10) return showStatus('split-status', 'K must be ≤ 10.', true);
+  if (n > 20) return showStatus('split-status', 'N must be ≤ 20.', true);
+
+  setLoading('split-btn', true);
+  try {
+    const secretBytes = new TextEncoder().encode(secret);
+    const rawShares   = shamirSplit(secretBytes, k, n);
+    _generatedShares  = rawShares.map((data, i) => encodeShare(i + 1, data));
+
+    const list = document.getElementById('shares-list');
+    list.innerHTML = '';
+
+    _generatedShares.forEach((share, i) => {
+      const div = document.createElement('div');
+      div.className = 'share-card';
+      div.innerHTML = `
+        <span class="share-num">Share ${i + 1} / ${n}</span>
+        <span class="share-val" id="sv${i}">${share}</span>
+        <button class="share-copy" id="sc${i}" onclick="copyShareBtn(${i})">Copy</button>
+      `;
+      list.appendChild(div);
+    });
+
+    document.getElementById('split-result').style.display = 'block';
+    showStatus('split-status', `✔ Secret split into ${n} shares. Any ${k} of them can reconstruct it.`, false);
+  } catch (e) {
+    showStatus('split-status', 'Split failed: ' + e.message, true);
+  } finally {
+    setLoading('split-btn', false);
+  }
+}
+
+function copyShareBtn(i) {
+  const text = document.getElementById('sv' + i)?.textContent || '';
+  copyText(text, 'sc' + i);
+}
+
+function copyAllShares() {
+  navigator.clipboard.writeText(_generatedShares.join('\n'));
+}
+
+function downloadShares() {
+  if (!_generatedShares.length) return;
+  const k = document.getElementById('split-k').value;
+  const n = document.getElementById('split-n').value;
+  const content = `Aegis Suite — Shamir's Secret Sharing\nThreshold: ${k} of ${n} shares required\n\n` +
+    _generatedShares.map((s, i) => `Share ${i+1}:\n${s}`).join('\n\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([content], { type:'text/plain' }));
+  a.download = 'secret_shares.txt'; a.click();
+}
+
+function loadSharesToRecon() {
+  const k = parseInt(document.getElementById('split-k').value);
+  document.getElementById('recon-k').value = k;
+  renderReconInputs();
+  // Fill with first k shares
+  _generatedShares.slice(0, k).forEach((share, i) => {
+    const inp = document.getElementById('ri' + i);
+    if (inp) inp.value = share;
+  });
+  setMode('recon');
+}
+
+// ── Reconstruct ───────────────────────────────────────────────────────────────
+function renderReconInputs() {
+  const k    = parseInt(document.getElementById('recon-k').value) || 3;
+  const list = document.getElementById('recon-list');
+  list.innerHTML = '';
+  for (let i = 0; i < k; i++) {
+    list.innerHTML += `
+      <div class="recon-item">
+        <span class="recon-num">Share ${i + 1}</span>
+        <input class="recon-inp" id="ri${i}" type="text" placeholder="aegis-sss-v1:…">
+      </div>`;
+  }
+}
+
+function doReconstruct() {
+  const k = parseInt(document.getElementById('recon-k').value);
+  setLoading('recon-btn', true);
+  document.getElementById('recon-out-wrap').style.display = 'none';
+  try {
+    const points = [];
+    for (let i = 0; i < k; i++) {
+      const val = document.getElementById('ri' + i)?.value?.trim();
+      if (!val) throw new Error(`Share ${i + 1} is empty.`);
+      points.push(decodeShare(val));
+    }
+
+    // Check for duplicate x-values
+    const xs = points.map(p => p.x);
+    if (new Set(xs).size !== xs.length) throw new Error('Duplicate share indices detected — each share must be unique.');
+
+    // All shares must have same data length
+    const len = points[0].data.length;
+    if (!points.every(p => p.data.length === len)) throw new Error('Shares have inconsistent lengths — they may be from different secrets.');
+
+    const secretBytes = shamirReconstruct(points);
+    const secret      = new TextDecoder().decode(secretBytes);
+
+    document.getElementById('recon-out').textContent = secret;
+    document.getElementById('recon-out-wrap').style.display = 'block';
+    showStatus('recon-status', '✔ Secret reconstructed successfully.', false);
+  } catch (e) {
+    showStatus('recon-status', 'Reconstruction failed: ' + e.message, true);
+  } finally {
+    setLoading('recon-btn', false);
+  }
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+updateVis();
+renderReconInputs();
+</script>
+</body>
+</html>
