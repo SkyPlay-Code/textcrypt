@@ -270,7 +270,7 @@ document.addEventListener('DOMContentLoaded', () => {
 async function deriveKey(password, salt) {
   const mat = await crypto.subtle.importKey(
     'raw', new TextEncoder().encode(password),
-    { name: 'PBKDF2' }, false, ['deriveKey']
+    { name: 'PBKDF2' }, false,['deriveKey']
   );
   return crypto.subtle.deriveKey(
     { name: 'PBKDF2', salt, iterations: 250000, hash: 'SHA-256' },
@@ -446,6 +446,7 @@ async function doOpen() {
       const out   = document.getElementById('open-out');
 
       // Show a neutral success message — do not label "real" or "decoy"
+      res.style.display = 'block'; // Fixed here: Removed the inline style blocking it from appearing
       res.className    = 'dec-result decoy'; // neutral blue styling
       title.textContent = '✅ Vault opened — decrypted message:';
       title.className  = 'dec-result-title decoy';
