@@ -181,8 +181,12 @@ const GF_LOG = new Uint8Array(256);
   for (let i = 0; i < 255; i++) {
     GF_EXP[i] = x;
     GF_LOG[x] = i;
-    x <<= 1;
-    if (x & 0x100) x ^= GF_PRIME;
+    
+    // Multiply by 3 in GF(256) instead of 2. 
+    // 2 is not a primitive element for the AES polynomial (0x11b)!
+    let x2 = x << 1;
+    if (x2 & 0x100) x2 ^= GF_PRIME;
+    x = x2 ^ x;
   }
   // Duplicate exp table for modular lookups without %255
   for (let i = 255; i < 512; i++) GF_EXP[i] = GF_EXP[i - 255];
@@ -190,12 +194,14 @@ const GF_LOG = new Uint8Array(256);
 
 function gfMul(a, b) {
   if (a === 0 || b === 0) return 0;
-  return GF_EXP[(GF_LOG[a] + GF_LOG[b]) % 255];
+  // Utilizing the duplicated EXP array eliminates the need for modulo math here
+  return GF_EXP[GF_LOG[a] + GF_LOG[b]];
 }
 function gfDiv(a, b) {
   if (b === 0) throw new Error('GF division by zero');
   if (a === 0) return 0;
-  return GF_EXP[(GF_LOG[a] - GF_LOG[b] + 255) % 255];
+  // Utilizing the duplicated EXP array
+  return GF_EXP[GF_LOG[a] - GF_LOG[b] + 255];
 }
 function gfPow(x, p) {
   if (x === 0) return 0;
@@ -270,7 +276,12 @@ function shamirReconstruct(sharePoints) {
 // ── Encoding / decoding shares ────────────────────────────────────────────────
 // Format: aegis-sss-v1:<shareIndex>:<base64(data)>
 function encodeShare(index, data) {
-  const b64 = btoa(String.fromCharCode(...data));
+  let binStr = '';
+  // Looping ensures we avoid "Maximum call stack size exceeded" for larger files
+  for (let i = 0; i < data.length; i++) {
+    binStr += String.fromCharCode(data[i]);
+  }
+  const b64 = btoa(binStr);
   return `aegis-sss-v1:${index}:${b64}`;
 }
 function decodeShare(str) {
@@ -287,7 +298,7 @@ function decodeShare(str) {
 }
 
 // ── State ─────────────────────────────────────────────────────────────────────
-let _generatedShares = [];
+let _generatedShares =[];
 
 // ── UI ────────────────────────────────────────────────────────────────────────
 function setMode(m) {
@@ -419,7 +430,7 @@ function doReconstruct() {
   setLoading('recon-btn', true);
   document.getElementById('recon-out-wrap').style.display = 'none';
   try {
-    const points = [];
+    const points =[];
     for (let i = 0; i < k; i++) {
       const val = document.getElementById('ri' + i)?.value?.trim();
       if (!val) throw new Error(`Share ${i + 1} is empty.`);
