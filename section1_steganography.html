@@ -3,48 +3,118 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Aegis - Section 1: Steganography</title>
+    <title>Aegis · Section 1: Steganography Suite</title>
     <link rel="stylesheet" href="styles.css">
     <script src="utils.js"></script>
     <style>
-        /* Section-specific Layout & Overrides */
-        body { padding: 20px; display: block; height: auto; overflow: auto; } /* For standalone testing */
+        :root {
+            --bg: #0f1115;
+            --panel: #1a1d24;
+            --border: #2a2e39;
+            --primary: #3b82f6;
+            --primary-hover: #2563eb;
+            --text: #e2e8f0;
+            --text-muted: #94a3b8;
+            --error: #ef4444;
+            --success: #22c55e;
+            --warning: #f59e0b;
+            --mono: 'Fira Code', 'Courier New', monospace;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
+        body { background: var(--bg); color: var(--text); padding: 24px; min-height: 100vh; overflow-y: auto; }
         
-        .nav-tabs { display: flex; gap: 10px; margin-bottom: 24px; border-bottom: 1px solid var(--border); padding-bottom: 10px; overflow-x: auto; }
-        .nav-tab { padding: 8px 16px; cursor: pointer; color: var(--text-muted); font-size: 0.95rem; font-weight: 500; border-radius: 6px; white-space: nowrap; transition: 0.2s; }
-        .nav-tab:hover { background: rgba(255,255,255,0.05); }
-        .nav-tab.active { background: rgba(59, 130, 246, 0.1); color: var(--primary); border: 1px solid rgba(59, 130, 246, 0.3); }
+        h2 { font-size: 1.4rem; margin-bottom: 4px; }
+        .subtitle { color: var(--text-muted); font-size: 0.85rem; margin-bottom: 20px; }
+
+        /* Top Navigation Tabs */
+        .nav-tabs { display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 10px; overflow-x: auto; scrollbar-width: none; }
+        .nav-tabs::-webkit-scrollbar { display: none; }
+        .nav-tab { padding: 8px 16px; cursor: pointer; color: var(--text-muted); font-size: 0.88rem; font-weight: 600; border-radius: 6px; white-space: nowrap; transition: 0.2s; border: 1px solid transparent; }
+        .nav-tab:hover { background: rgba(255,255,255,0.04); color: var(--text); }
+        .nav-tab.active { background: rgba(59, 130, 246, 0.12); color: var(--primary); border-color: rgba(59, 130, 246, 0.3); }
 
         .tool-section { display: none; }
-        .tool-section.active { display: block; animation: fadeIn 0.3s ease; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        .tool-section.active { display: block; animation: fadeIn 0.25s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 
-        .mode-tabs { display: flex; background: #15181e; border-radius: 6px; overflow: hidden; margin-bottom: 20px; border: 1px solid var(--border); }
-        .mode-tab { flex: 1; text-align: center; padding: 10px; cursor: pointer; color: var(--text-muted); font-size: 0.85rem; font-weight: 600; text-transform: uppercase; transition: 0.2s; }
-        .mode-tab.active { background: var(--panel); color: var(--primary); border-bottom: 2px solid var(--primary); }
+        .tool-card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 24px; max-width: 780px; margin: 0 auto 30px; }
+        .header-flex { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; flex-wrap: wrap; gap: 10px; }
+        .header-flex h3 { font-size: 1.15rem; margin: 0; }
+
+        /* Badges */
+        .badge { padding: 4px 10px; border-radius: 20px; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+        .badge.secure { background: rgba(34, 197, 94, 0.15); color: var(--success); }
+        .badge.legacy { background: rgba(245, 158, 11, 0.15); color: var(--warning); }
+        .badge.linguistic { background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.3); }
+
+        /* Mode Switcher Tabs */
+        .mode-strip { display: flex; background: #15181e; border-radius: 6px; overflow: hidden; margin-bottom: 20px; border: 1px solid var(--border); }
+        .mode-btn { flex: 1; text-align: center; padding: 10px; cursor: pointer; color: var(--text-muted); font-size: 0.85rem; font-weight: 600; text-transform: uppercase; transition: 0.2s; border: none; background: none; }
+        .mode-btn.active { background: var(--panel); color: var(--primary); border-bottom: 2px solid var(--primary); }
 
         .mode-content { display: none; }
         .mode-content.active { display: block; }
 
-        .file-drop-area { border: 2px dashed var(--border); border-radius: 8px; padding: 30px 20px; text-align: center; cursor: pointer; background: rgba(255,255,255,0.01); transition: 0.2s; margin-bottom: 15px; }
+        /* Form Controls */
+        .form-group { margin-bottom: 16px; position: relative; }
+        label { display: block; margin-bottom: 6px; font-size: 0.84rem; color: var(--text-muted); font-weight: 500; }
+        textarea, input[type="text"], input[type="password"], select {
+            width: 100%; padding: 11px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 0.9rem; transition: border-color 0.2s;
+        }
+        textarea { min-height: 90px; resize: vertical; }
+        textarea.mono, .mono-text { font-family: var(--mono); font-size: 0.82rem; }
+        textarea:focus, input:focus, select:focus { outline: none; border-color: var(--primary); }
+
+        .pwd-toggle { position: absolute; right: 10px; top: 33px; background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1rem; }
+
+        /* Drag & Drop */
+        .file-drop-area { border: 2px dashed var(--border); border-radius: 8px; padding: 26px 16px; text-align: center; cursor: pointer; background: rgba(255,255,255,0.01); transition: 0.2s; margin-bottom: 14px; }
         .file-drop-area:hover, .file-drop-area.dragover { border-color: var(--primary); background: rgba(59, 130, 246, 0.05); }
         .file-drop-area input[type="file"] { display: none; }
-        .file-name-display { margin-top: 10px; font-size: 0.85rem; color: var(--primary); font-family: var(--font-mono); word-break: break-all; }
+        .file-name-display { margin-top: 8px; font-size: 0.82rem; color: var(--primary); font-family: var(--mono); word-break: break-all; }
 
-        .header-flex { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
-        .header-flex h3 { margin: 0; font-size: 1.2rem; }
+        /* Buttons */
+        .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 18px; background: var(--primary); color: #fff; border: none; border-radius: 6px; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+        .btn:hover { background: var(--primary-hover); }
+        .btn:disabled { background: var(--border); color: var(--text-muted); cursor: not-allowed; }
+        .btn-secondary { background: transparent; border: 1px solid var(--border); color: var(--text); padding: 7px 14px; font-size: 0.82rem; }
+        .btn-secondary:hover { background: var(--border); }
+        .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+
+        .output-area { font-family: var(--mono); font-size: 0.82rem; background: var(--bg); border: 1px solid var(--border); padding: 12px; border-radius: 6px; word-break: break-all; min-height: 56px; white-space: pre-wrap; line-height: 1.5; }
+
+        /* Status & Feedback */
+        .status-msg { margin-top: 12px; padding: 10px 14px; border-radius: 6px; font-size: 0.84rem; display: none; }
+        .status-msg.ok { background: rgba(34,197,94,0.1); color: var(--success); border: 1px solid rgba(34,197,94,0.25); display: block; }
+        .status-msg.err { background: rgba(239,68,68,0.1); color: var(--error); border: 1px solid rgba(239,68,68,0.25); display: block; }
+
+        .spinner { width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.3); border-radius: 50%; border-top-color: #fff; animation: spin 0.7s linear infinite; display: none; }
+        .btn.loading .spinner { display: inline-block; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Capacity stats widget */
+        .metric-bar { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; background: rgba(0,0,0,0.25); border-radius: 6px; border: 1px solid var(--border); margin-bottom: 14px; font-size: 0.8rem; }
+        .metric-bar span strong { color: var(--primary); font-family: var(--mono); }
+
+        details.how-it-works { margin-top: 20px; padding: 14px; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border); border-radius: 6px; font-size: 0.83rem; color: var(--text-muted); }
+        details.how-it-works summary { cursor: pointer; font-weight: 600; color: var(--text); }
+        details.how-it-works p { margin-top: 10px; line-height: 1.6; }
+        code { background: rgba(255,255,255,0.07); padding: 1px 5px; border-radius: 3px; font-family: var(--mono); }
     </style>
 </head>
 <body>
 
-<div class="main-content">
+<div style="max-width: 780px; margin: 0 auto;">
     <h2>1. Steganography Suite</h2>
+    <p class="subtitle">Imperceptible payload embedding · Image LSB · Audio PCM · Invisible Unicode · Linguistic Markov Disguiser</p>
     
     <div class="nav-tabs">
-        <div class="nav-tab active" onclick="switchTool('img-stego')">1a. Image Stego (LSB)</div>
-        <div class="nav-tab" onclick="switchTool('emoji-stego')">1b. Emoji Stego</div>
-        <div class="nav-tab" onclick="switchTool('text-stego')">1c. Text Stego</div>
-        <div class="nav-tab" onclick="switchTool('audio-stego')">1d. Audio Stego (WAV)</div>
+        <div class="nav-tab active" onclick="switchTool('img-stego')">1a. Image LSB</div>
+        <div class="nav-tab" onclick="switchTool('emoji-stego')">1b. Emoji ZW</div>
+        <div class="nav-tab" onclick="switchTool('text-stego')">1c. Text ZW</div>
+        <div class="nav-tab" onclick="switchTool('audio-stego')">1d. Audio WAV</div>
+        <div class="nav-tab" onclick="switchTool('linguistic-stego')">1e. Linguistic Disguiser</div>
     </div>
 
     <!-- ==========================================
@@ -54,35 +124,35 @@
         <div class="tool-card">
             <div class="header-flex">
                 <h3>Cryptographic Image Steganography</h3>
-                <span class="badge secure">AES-256-GCM / LSB</span>
+                <span class="badge secure">AES-256-GCM · 24-Bit LSB</span>
             </div>
             
-            <div class="mode-tabs">
-                <div class="mode-tab active" onclick="switchMode('img', 'encode')">Encrypt & Embed</div>
-                <div class="mode-tab" onclick="switchMode('img', 'decode')">Extract & Decrypt</div>
+            <div class="mode-strip">
+                <button class="mode-btn active" id="img-btn-enc" onclick="switchMode('img', 'encode')">🔒 Encrypt &amp; Embed</button>
+                <button class="mode-btn" id="img-btn-dec" onclick="switchMode('img', 'decode')">🔓 Extract &amp; Decrypt</button>
             </div>
 
             <!-- Image Encode -->
             <div id="img-encode" class="mode-content active">
                 <div class="form-group">
                     <label>Carrier Image (PNG or JPG)</label>
-                    <div class="file-drop-area" onclick="document.getElementById('img-enc-file').click()">
-                        <span>Drop image here or click to browse</span>
+                    <div class="file-drop-area" id="img-enc-drop" onclick="document.getElementById('img-enc-file').click()">
+                        <span>Drag &amp; drop carrier image here, or click to browse</span>
                         <input type="file" id="img-enc-file" accept="image/png, image/jpeg" onchange="updateFileName(this, 'img-enc-filename')">
                         <div id="img-enc-filename" class="file-name-display"></div>
                     </div>
                 </div>
                 <div class="form-group">
-                    <label>Secret Payload (Text)</label>
-                    <textarea id="img-enc-text" placeholder="Highly confidential text to embed..."></textarea>
+                    <label>Secret Payload (Plaintext)</label>
+                    <textarea id="img-enc-text" placeholder="Confidential message to inject into image pixels…"></textarea>
                 </div>
                 <div class="form-group">
                     <label>Encryption Password</label>
-                    <input type="password" id="img-enc-pass" placeholder="Used to derive AES key">
+                    <input type="password" id="img-enc-pass" placeholder="Derived into AES-256 key via PBKDF2">
                     <button class="pwd-toggle" onclick="Aegis.togglePassword('img-enc-pass')">👁</button>
                 </div>
                 <button class="btn" id="img-enc-btn" onclick="execImgEncode()">
-                    <span class="spinner"></span> Generate Secure Image
+                    <span class="spinner"></span> Generate &amp; Download Stego PNG
                 </button>
                 <div id="img-enc-status" class="status-msg"></div>
             </div>
@@ -91,31 +161,33 @@
             <div id="img-decode" class="mode-content">
                 <div class="form-group">
                     <label>Stego Image (PNG Only)</label>
-                    <div class="file-drop-area" onclick="document.getElementById('img-dec-file').click()">
-                        <span>Drop stego PNG here or click to browse</span>
+                    <div class="file-drop-area" id="img-dec-drop" onclick="document.getElementById('img-dec-file').click()">
+                        <span>Drag &amp; drop stego PNG image here, or click to browse</span>
                         <input type="file" id="img-dec-file" accept="image/png" onchange="updateFileName(this, 'img-dec-filename')">
                         <div id="img-dec-filename" class="file-name-display"></div>
                     </div>
                 </div>
                 <div class="form-group">
                     <label>Decryption Password</label>
-                    <input type="password" id="img-dec-pass" placeholder="Required for extraction">
+                    <input type="password" id="img-dec-pass" placeholder="Password used during embedding">
                     <button class="pwd-toggle" onclick="Aegis.togglePassword('img-dec-pass')">👁</button>
                 </div>
                 <button class="btn" id="img-dec-btn" onclick="execImgDecode()">
-                    <span class="spinner"></span> Extract Payload
+                    <span class="spinner"></span> Extract &amp; Decrypt Payload
                 </button>
-                <div class="form-group" style="margin-top: 15px;">
+                <div class="form-group" style="margin-top: 16px;">
                     <label>Decrypted Payload</label>
-                    <div class="output-area" id="img-dec-out">Awaiting decryption...</div>
-                    <button class="btn btn-secondary" id="img-copy-btn" style="margin-top: 10px;" onclick="Aegis.copyWithCountdown(document.getElementById('img-dec-out').innerText, 'img-copy-btn')">Copy to Clipboard</button>
+                    <div class="output-area" id="img-dec-out">Awaiting extraction…</div>
+                    <div class="btn-row">
+                        <button class="btn btn-secondary" id="img-copy-btn" onclick="Aegis.copyWithCountdown(document.getElementById('img-dec-out').innerText, 'img-copy-btn')">Copy to Clipboard</button>
+                    </div>
                 </div>
                 <div id="img-dec-status" class="status-msg"></div>
             </div>
 
             <details class="how-it-works">
                 <summary>How it works</summary>
-                <p>The payload is first encrypted using <strong>AES-256-GCM</strong>. The key is derived from your password and a random salt via <strong>PBKDF2</strong>. The resulting ciphertext, salt, and IV are converted to binary bits and embedded into the Least Significant Bits (LSB) of the RGB channels of the image, keeping the visual alteration mathematically imperceptible.</p>
+                <p>The payload is encrypted using <strong>AES-256-GCM</strong> with an ephemeral 12-byte IV and a key derived via <strong>PBKDF2</strong> (250,000 rounds). The structured binary bundle <code>[Length: 4B][Salt: 16B][IV: 12B][Ciphertext + Tag]</code> is injected into the Least Significant Bit (LSB) of RGB channels in the canvas context, keeping visual changes mathematically imperceptible.</p>
             </details>
         </div>
     </div>
@@ -130,49 +202,52 @@
                 <span class="badge legacy">Zero-Width Unicode</span>
             </div>
 
-            <div class="mode-tabs">
-                <div class="mode-tab active" onclick="switchMode('emj', 'encode')">Hide in Emoji</div>
-                <div class="mode-tab" onclick="switchMode('emj', 'decode')">Reveal Secret</div>
+            <div class="mode-strip">
+                <button class="mode-btn active" id="emj-btn-enc" onclick="switchMode('emj', 'encode')">🔒 Hide in Emoji</button>
+                <button class="mode-btn" id="emj-btn-dec" onclick="switchMode('emj', 'decode')">🔓 Reveal Secret</button>
             </div>
 
-            <!-- Emoji Encode -->
             <div id="emj-encode" class="mode-content active">
                 <div class="form-group">
-                    <label>Cover Emoji String</label>
-                    <input type="text" id="emj-enc-cover" placeholder="e.g. 🐶🐱🐭🐹">
+                    <label>Cover Emoji / Emoticon</label>
+                    <input type="text" id="emj-enc-cover" value="🛡️" placeholder="e.g. 🛡️ or 🚀🔥">
                 </div>
                 <div class="form-group">
-                    <label>Secret Text</label>
-                    <textarea id="emj-enc-text" placeholder="Text to hide behind emojis..."></textarea>
+                    <label>Secret Text Payload</label>
+                    <textarea id="emj-enc-text" placeholder="Confidential text to hide behind the emojis…"></textarea>
                 </div>
-                <button class="btn" id="emj-enc-btn" onclick="execEmojiEncode()">Generate Stego Emoji</button>
+                <button class="btn" id="emj-enc-btn" onclick="execEmojiEncode()">Generate Stego Emojis</button>
                 
-                <div class="form-group" style="margin-top: 15px;">
-                    <label>Result</label>
-                    <div class="output-area" id="emj-enc-out">Output will appear here...</div>
-                    <button class="btn btn-secondary" id="emj-copy-btn" style="margin-top: 10px;" onclick="Aegis.copyWithCountdown(document.getElementById('emj-enc-out').innerText, 'emj-copy-btn')">Copy to Clipboard</button>
+                <div class="form-group" style="margin-top: 16px;">
+                    <label>Stego Output (Looks like plain emojis)</label>
+                    <div class="output-area" id="emj-enc-out">Output will appear here…</div>
+                    <div class="btn-row">
+                        <button class="btn btn-secondary" id="emj-copy-btn" onclick="Aegis.copyWithCountdown(document.getElementById('emj-enc-out').innerText, 'emj-copy-btn')">Copy to Clipboard</button>
+                    </div>
                 </div>
                 <div id="emj-enc-status" class="status-msg"></div>
             </div>
 
-            <!-- Emoji Decode -->
             <div id="emj-decode" class="mode-content">
                 <div class="form-group">
-                    <label>Paste Stego Emoji</label>
-                    <textarea id="emj-dec-text" placeholder="Paste the emojis containing hidden data..."></textarea>
+                    <label>Paste Stego Emoji Text</label>
+                    <textarea id="emj-dec-text" placeholder="Paste the emojis carrying the hidden data…"></textarea>
                 </div>
-                <button class="btn" id="emj-dec-btn" onclick="execEmojiDecode()">Extract Text</button>
+                <button class="btn" id="emj-dec-btn" onclick="execEmojiDecode()">Extract Secret Text</button>
                 
-                <div class="form-group" style="margin-top: 15px;">
+                <div class="form-group" style="margin-top: 16px;">
                     <label>Revealed Text</label>
-                    <div class="output-area" id="emj-dec-out">Hidden text will appear here...</div>
+                    <div class="output-area" id="emj-dec-out">Hidden text will appear here…</div>
+                    <div class="btn-row">
+                        <button class="btn btn-secondary" id="emj-dec-copy-btn" onclick="Aegis.copyWithCountdown(document.getElementById('emj-dec-out').innerText, 'emj-dec-copy-btn')">Copy to Clipboard</button>
+                    </div>
                 </div>
                 <div id="emj-dec-status" class="status-msg"></div>
             </div>
 
             <details class="how-it-works">
                 <summary>How it works</summary>
-                <p>Translates your secret text into binary, then maps `0` and `1` to invisible zero-width Unicode characters (Zero Width Joiner and Zero Width Non-Joiner). These invisible characters are interleaved immediately following your chosen emoji. Because they have zero width, the text appears completely normal.</p>
+                <p>Converts secret text into a raw binary bitstream, then maps bit `0` to Zero-Width Non-Joiner (<code>U+200C</code>) and bit `1` to Zero-Width Joiner (<code>U+200D</code>), framed by Zero-Width Space (<code>U+200B</code>). The entire binary payload sits invisibly directly behind the cover emoji.</p>
             </details>
         </div>
     </div>
@@ -184,28 +259,30 @@
         <div class="tool-card">
             <div class="header-flex">
                 <h3>Text Steganography</h3>
-                <span class="badge legacy">Zero-Width Unicode</span>
+                <span class="badge legacy">Invisible Joiners</span>
             </div>
 
-            <div class="mode-tabs">
-                <div class="mode-tab active" onclick="switchMode('txt', 'encode')">Hide in Text</div>
-                <div class="mode-tab" onclick="switchMode('txt', 'decode')">Reveal Secret</div>
+            <div class="mode-strip">
+                <button class="mode-btn active" id="txt-btn-enc" onclick="switchMode('txt', 'encode')">🔒 Hide in Text</button>
+                <button class="mode-btn" id="txt-btn-dec" onclick="switchMode('txt', 'decode')">🔓 Reveal from Text</button>
             </div>
 
             <div id="txt-encode" class="mode-content active">
                 <div class="form-group">
-                    <label>Cover Text (Normal paragraph)</label>
-                    <textarea id="txt-enc-cover" placeholder="Normal looking text to act as a carrier..."></textarea>
+                    <label>Cover Text (Innocent carrier sentence)</label>
+                    <textarea id="txt-enc-cover" placeholder="Normal carrier paragraph or sentence…"></textarea>
                 </div>
                 <div class="form-group">
                     <label>Secret Payload</label>
-                    <textarea id="txt-enc-secret" placeholder="The hidden data to inject..."></textarea>
+                    <textarea id="txt-enc-secret" placeholder="The confidential data to inject…"></textarea>
                 </div>
-                <button class="btn" id="txt-enc-btn" onclick="execTextEncode()">Inject Payload</button>
-                <div class="form-group" style="margin-top: 15px;">
+                <button class="btn" id="txt-enc-btn" onclick="execTextEncode()">Inject Invisible Payload</button>
+                <div class="form-group" style="margin-top: 16px;">
                     <label>Stego Text Result</label>
-                    <div class="output-area" id="txt-enc-out"></div>
-                    <button class="btn btn-secondary" id="txt-copy-btn" style="margin-top: 10px;" onclick="Aegis.copyWithCountdown(document.getElementById('txt-enc-out').innerText, 'txt-copy-btn')">Copy to Clipboard</button>
+                    <div class="output-area" id="txt-enc-out">Output will appear here…</div>
+                    <div class="btn-row">
+                        <button class="btn btn-secondary" id="txt-copy-btn" onclick="Aegis.copyWithCountdown(document.getElementById('txt-enc-out').innerText, 'txt-copy-btn')">Copy to Clipboard</button>
+                    </div>
                 </div>
                 <div id="txt-enc-status" class="status-msg"></div>
             </div>
@@ -213,19 +290,22 @@
             <div id="txt-decode" class="mode-content">
                 <div class="form-group">
                     <label>Paste Stego Text</label>
-                    <textarea id="txt-dec-input" placeholder="Paste the innocent-looking text here..."></textarea>
+                    <textarea id="txt-dec-input" placeholder="Paste the carrier text containing hidden payload…"></textarea>
                 </div>
-                <button class="btn" id="txt-dec-btn" onclick="execTextDecode()">Extract Data</button>
-                <div class="form-group" style="margin-top: 15px;">
+                <button class="btn" id="txt-dec-btn" onclick="execTextDecode()">Extract Hidden Data</button>
+                <div class="form-group" style="margin-top: 16px;">
                     <label>Extracted Payload</label>
-                    <div class="output-area" id="txt-dec-out"></div>
+                    <div class="output-area" id="txt-dec-out">Hidden payload will appear here…</div>
+                    <div class="btn-row">
+                        <button class="btn btn-secondary" id="txt-dec-copy-btn" onclick="Aegis.copyWithCountdown(document.getElementById('txt-dec-out').innerText, 'txt-dec-copy-btn')">Copy to Clipboard</button>
+                    </div>
                 </div>
                 <div id="txt-dec-status" class="status-msg"></div>
             </div>
 
             <details class="how-it-works">
                 <summary>How it works</summary>
-                <p>Functions identically to the Emoji tool but uses a different set of invisible characters (Word Joiner U+2060 and Invisible Times U+2062) to embed the binary data immediately after the first character of the cover text. <em>Note: Pasting into some plain-text strict terminals may strip these characters.</em></p>
+                <p>Embeds payload bits immediately after the first character of the innocent carrier text using invisible Word Joiner (<code>U+2060</code>) and Invisible Times (<code>U+2062</code>), bordered by Invisible Separator (<code>U+2063</code>). The text renders identically in visual word processors and browsers.</p>
             </details>
         </div>
     </div>
@@ -237,102 +317,288 @@
         <div class="tool-card">
             <div class="header-flex">
                 <h3>WAV Audio Steganography</h3>
-                <span class="badge legacy">PCM LSB injection</span>
+                <span class="badge legacy">PCM Sample LSB</span>
             </div>
 
-            <div class="mode-tabs">
-                <div class="mode-tab active" onclick="switchMode('aud', 'encode')">Embed into Audio</div>
-                <div class="mode-tab" onclick="switchMode('aud', 'decode')">Extract from Audio</div>
+            <div class="mode-strip">
+                <button class="mode-btn active" id="aud-btn-enc" onclick="switchMode('aud', 'encode')">🔒 Embed into Audio</button>
+                <button class="mode-btn" id="aud-btn-dec" onclick="switchMode('aud', 'decode')">🔓 Extract from Audio</button>
             </div>
 
             <div id="aud-encode" class="mode-content active">
                 <div class="form-group">
-                    <label>Carrier WAV File</label>
-                    <div class="file-drop-area" onclick="document.getElementById('aud-enc-file').click()">
-                        <span>Drop WAV here or click to browse</span>
-                        <input type="file" id="aud-enc-file" accept="audio/wav" onchange="updateFileName(this, 'aud-enc-filename')">
+                    <label>Carrier Audio File (WAV Only)</label>
+                    <div class="file-drop-area" id="aud-enc-drop" onclick="document.getElementById('aud-enc-file').click()">
+                        <span>Drag &amp; drop standard PCM WAV here, or click to browse</span>
+                        <input type="file" id="aud-enc-file" accept="audio/wav, audio/x-wav" onchange="updateFileName(this, 'aud-enc-filename')">
                         <div id="aud-enc-filename" class="file-name-display"></div>
                     </div>
                 </div>
                 <div class="form-group">
-                    <label>Secret Message</label>
-                    <textarea id="aud-enc-text" placeholder="Message to encode into audio samples..."></textarea>
+                    <label>Secret Message Payload</label>
+                    <textarea id="aud-enc-text" placeholder="Message to encode into audio waveform samples…"></textarea>
                 </div>
                 <button class="btn" id="aud-enc-btn" onclick="execAudioEncode()">
-                    <span class="spinner"></span> Generate Stego Audio
+                    <span class="spinner"></span> Generate &amp; Download Stego WAV
                 </button>
                 <div id="aud-enc-status" class="status-msg"></div>
             </div>
 
             <div id="aud-decode" class="mode-content">
                 <div class="form-group">
-                    <label>Stego WAV File</label>
-                    <div class="file-drop-area" onclick="document.getElementById('aud-dec-file').click()">
-                        <span>Drop stego WAV here or click to browse</span>
-                        <input type="file" id="aud-dec-file" accept="audio/wav" onchange="updateFileName(this, 'aud-dec-filename')">
+                    <label>Stego Audio File (WAV)</label>
+                    <div class="file-drop-area" id="aud-dec-drop" onclick="document.getElementById('aud-dec-file').click()">
+                        <span>Drag &amp; drop stego WAV file here, or click to browse</span>
+                        <input type="file" id="aud-dec-file" accept="audio/wav, audio/x-wav" onchange="updateFileName(this, 'aud-dec-filename')">
                         <div id="aud-dec-filename" class="file-name-display"></div>
                     </div>
                 </div>
                 <button class="btn" id="aud-dec-btn" onclick="execAudioDecode()">
-                    <span class="spinner"></span> Extract Payload
+                    <span class="spinner"></span> Extract Payload from Audio
                 </button>
-                <div class="form-group" style="margin-top: 15px;">
+                <div class="form-group" style="margin-top: 16px;">
                     <label>Extracted Payload</label>
-                    <div class="output-area" id="aud-dec-out"></div>
+                    <div class="output-area" id="aud-dec-out">Decoded message will appear here…</div>
+                    <div class="btn-row">
+                        <button class="btn btn-secondary" id="aud-dec-copy-btn" onclick="Aegis.copyWithCountdown(document.getElementById('aud-dec-out').innerText, 'aud-dec-copy-btn')">Copy to Clipboard</button>
+                    </div>
                 </div>
                 <div id="aud-dec-status" class="status-msg"></div>
             </div>
 
             <details class="how-it-works">
                 <summary>How it works</summary>
-                <p>Directly parses the RIFF/WAV binary headers to locate the raw PCM data chunk. It modifies the Least Significant Bit (LSB) of the audio samples to inject binary data. The subtle modification introduces negligible background noise, making it undetectable to the human ear.</p>
+                <p>Parses the RIFF/WAVE header down to the raw <code>data</code> chunk containing 16-bit uncompressed PCM pulse audio samples. Injects binary data directly into the Least Significant Bit of each audio sample. The resulting sound alteration is below human psychoacoustic threshold.</p>
+            </details>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         1E. LINGUISTIC / MARKOV DISGUISER (NEW)
+         ========================================== -->
+    <div id="linguistic-stego" class="tool-section">
+        <div class="tool-card">
+            <div class="header-flex">
+                <h3>Linguistic / Markov Disguiser</h3>
+                <span class="badge linguistic">Natural Language Mimicry</span>
+            </div>
+
+            <div class="mode-strip">
+                <button class="mode-btn active" id="ling-btn-enc" onclick="switchMode('ling', 'encode')">📝 Disguise (Encode)</button>
+                <button class="mode-btn" id="ling-btn-dec" onclick="switchMode('ling', 'decode')">🔍 Reveal (Decode)</button>
+            </div>
+
+            <!-- Linguistic Encode -->
+            <div id="ling-encode" class="mode-content active">
+                <div class="form-group">
+                    <label>Cover Style / Lexicon Domain</label>
+                    <select id="ling-domain" onchange="updateLinguisticMetrics()">
+                        <option value="corp">Corporate Tech &amp; Cloud Ops (IT Memo)</option>
+                        <option value="fin">Financial Market Commentary (Economics)</option>
+                        <option value="scifi">Sci-Fi Mission Dispatch (Exploration)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Secret Payload (Text to disguise)</label>
+                    <textarea id="ling-enc-text" placeholder="Enter sensitive secret text to convert into innocent natural English sentences…" oninput="updateLinguisticMetrics()"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>Optional AES-256 Encryption Password</label>
+                    <input type="password" id="ling-enc-pass" placeholder="Optional: Encrypt payload before linguistic encoding" oninput="updateLinguisticMetrics()">
+                    <button class="pwd-toggle" onclick="Aegis.togglePassword('ling-enc-pass')">👁</button>
+                </div>
+
+                <div class="metric-bar" id="ling-metrics">
+                    <span>Raw Size: <strong id="lm-raw">0 B</strong></span>
+                    <span>Bitstream: <strong id="lm-bits">0 bits</strong></span>
+                    <span>Estimated Cover: <strong id="lm-sentences">0 sentences</strong></span>
+                </div>
+
+                <button class="btn" id="ling-enc-btn" onclick="execLinguisticEncode()">
+                    <span class="spinner"></span> Generate Natural Cover Text
+                </button>
+                <div id="ling-enc-status" class="status-msg"></div>
+
+                <div class="form-group" style="margin-top: 18px;">
+                    <label>Generated Natural Language Cover (Zero-entropy appearance)</label>
+                    <div class="output-area mono-text" id="ling-enc-out" style="min-height: 90px;">Innocent cover prose will generate here…</div>
+                    <div class="btn-row">
+                        <button class="btn btn-secondary" id="ling-copy-btn" onclick="Aegis.copyWithCountdown(document.getElementById('ling-enc-out').innerText, 'ling-copy-btn')">Copy Generated Text</button>
+                        <button class="btn btn-secondary" onclick="sendToLinguisticDecode()">→ Send to Reveal Tab</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Linguistic Decode -->
+            <div id="ling-decode" class="mode-content">
+                <div class="form-group">
+                    <label>Paste Natural Cover Text</label>
+                    <textarea id="ling-dec-input" placeholder="Paste the natural language cover text here to reconstruct the hidden payload…" style="min-height: 110px;"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>Decryption Password (if one was used during disguise)</label>
+                    <input type="password" id="ling-dec-pass" placeholder="Password required if payload was encrypted">
+                    <button class="pwd-toggle" onclick="Aegis.togglePassword('ling-dec-pass')">👁</button>
+                </div>
+
+                <button class="btn" id="ling-dec-btn" onclick="execLinguisticDecode()">
+                    <span class="spinner"></span> Reconstruct &amp; Reveal Secret
+                </button>
+                <div id="ling-dec-status" class="status-msg"></div>
+
+                <div class="form-group" style="margin-top: 18px;">
+                    <label>Extracted Plaintext Payload</label>
+                    <div class="output-area" id="ling-dec-out">Reconstructed secret payload will appear here…</div>
+                    <div class="btn-row">
+                        <button class="btn btn-secondary" id="ling-dec-copy-btn" onclick="Aegis.copyWithCountdown(document.getElementById('ling-dec-out').innerText, 'ling-dec-copy-btn')">Copy Plaintext</button>
+                    </div>
+                </div>
+            </div>
+
+            <details class="how-it-works">
+                <summary>How the Linguistic / Markov Disguiser works</summary>
+                <p>Unlike zero-width Unicode or raw LSB bit flipping which leave telltale entropy spikes, <strong>Linguistic Steganography</strong> converts binary data into grammatical word choices across a deterministic Context-Free Grammar (CFG) / N-gram model.</p>
+                <p>1. The payload is framed with a length header and a 16-bit CRC checksum (and optionally encrypted with AES-GCM).<br>
+                2. The resulting bitstream steps through syntactic sentence templates (e.g. <code>[Transition] [Subject Adj] [Subject] [Adverb] [Verb] [Object Adj] [Object] [Preposition] [Target Adj] [Target]</code>).<br>
+                3. Each syntactic slot draws from a power-of-two dictionary ($2^k$ vocabulary choices = $k$ bits). Each well-formed sentence naturally carries 35+ bits of information without producing high-entropy gibberish, spam anomalies, or invisible characters.</p>
             </details>
         </div>
     </div>
 </div>
 
 <script>
-    // --- UI Helpers ---
+    // ==========================================
+    // STANDALONE / AEGIS ENVIRONMENT POLYFILL
+    // ==========================================
+    window.Aegis = window.Aegis || {};
+    
+    Aegis.sessionOperations = Aegis.sessionOperations || 0;
+    Aegis.incrementOp = Aegis.incrementOp || function() {
+        this.sessionOperations++;
+        try {
+            if (window.parent && window.parent.Aegis && window.parent.Aegis.incrementOp && window.parent !== window) {
+                window.parent.Aegis.incrementOp();
+            }
+            const el = document.getElementById('session-counter');
+            if (el) el.innerText = this.sessionOperations;
+        } catch(e) {}
+    };
+
+    Aegis.deriveKey = Aegis.deriveKey || async function(password, salt) {
+        const enc = new TextEncoder();
+        const keyMaterial = await crypto.subtle.importKey(
+            "raw", enc.encode(password), { name: "PBKDF2" }, false, ["deriveKey"]
+        );
+        return crypto.subtle.deriveKey(
+            { name: "PBKDF2", salt: salt, iterations: 250000, hash: "SHA-256" },
+            keyMaterial, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]
+        );
+    };
+
+    Aegis.bytesToBits = Aegis.bytesToBits || function(bytes) {
+        const bits = [];
+        for (let i = 0; i < bytes.length; i++) {
+            for (let j = 7; j >= 0; j--) {
+                bits.push((bytes[i] >> j) & 1);
+            }
+        }
+        return bits;
+    };
+
+    Aegis.bitsToBytes = Aegis.bitsToBytes || function(bits) {
+        const bytes = new Uint8Array(Math.ceil(bits.length / 8));
+        let byteIdx = 0, cur = 0, bitCount = 0;
+        for (let i = 0; i < bits.length; i++) {
+            cur = (cur << 1) | bits[i];
+            bitCount++;
+            if (bitCount === 8) {
+                bytes[byteIdx++] = cur;
+                cur = 0;
+                bitCount = 0;
+            }
+        }
+        if (bitCount > 0) {
+            bytes[byteIdx] = cur << (8 - bitCount);
+        }
+        return bytes;
+    };
+
+    Aegis.showStatus = Aegis.showStatus || function(elId, msg, isError = false) {
+        const el = document.getElementById(elId);
+        if (!el) return;
+        el.className = 'status-msg ' + (isError ? 'err' : 'ok');
+        el.innerText = msg;
+        el.style.display = 'block';
+        setTimeout(() => { if (el) el.style.display = 'none'; }, 6000);
+    };
+
+    Aegis.togglePassword = Aegis.togglePassword || function(inputId) {
+        const inp = document.getElementById(inputId);
+        if (!inp) return;
+        inp.type = inp.type === 'password' ? 'text' : 'password';
+    };
+
+    const _copyTimers = {};
+    Aegis.copyWithCountdown = Aegis.copyWithCountdown || function(text, btnId) {
+        if (!text || text === 'Awaiting decryption...' || text === 'Hidden text will appear here...') return;
+        navigator.clipboard.writeText(text).then(() => {
+            const btn = document.getElementById(btnId);
+            if (!btn) return;
+            const orig = btn.innerText;
+            if (_copyTimers[btnId]) clearInterval(_copyTimers[btnId]);
+            let t = 30;
+            btn.innerText = `Clearing in ${t}s…`;
+            _copyTimers[btnId] = setInterval(() => {
+                t--;
+                if (t <= 0) {
+                    clearInterval(_copyTimers[btnId]);
+                    navigator.clipboard.writeText('');
+                    btn.innerText = orig;
+                } else {
+                    btn.innerText = `Clearing in ${t}s…`;
+                }
+            }, 1000);
+        });
+    };
+
+    // --- UI Navigation Helpers ---
     function switchTool(toolId) {
         document.querySelectorAll('.tool-section').forEach(el => el.classList.remove('active'));
         document.querySelectorAll('.nav-tab').forEach(el => el.classList.remove('active'));
-        document.getElementById(toolId).classList.add('active');
-        event.currentTarget.classList.add('active');
+        const target = document.getElementById(toolId);
+        if (target) target.classList.add('active');
+        if (event && event.currentTarget) event.currentTarget.classList.add('active');
     }
 
     function switchMode(prefix, mode) {
-        document.querySelectorAll(`#${prefix}-encode, #${prefix}-decode`).forEach(el => el.classList.remove('active'));
+        const parent = document.getElementById(`${prefix}-encode`).parentElement;
+        parent.querySelectorAll('.mode-content').forEach(el => el.classList.remove('active'));
+        parent.querySelectorAll('.mode-btn').forEach(el => el.classList.remove('active'));
         
-        // Find the specific mode-tabs container for this section
-        const section = document.getElementById(`${prefix}-encode`).parentElement;
-        section.querySelectorAll('.mode-tab').forEach(el => el.classList.remove('active'));
-        
-        document.getElementById(`${prefix}-${mode}`).classList.add('active');
-        event.currentTarget.classList.add('active');
+        const targetContent = document.getElementById(`${prefix}-${mode}`);
+        const targetBtn = document.getElementById(`${prefix}-btn-${mode === 'encode' ? 'enc' : 'dec'}`);
+        if (targetContent) targetContent.classList.add('active');
+        if (targetBtn) targetBtn.classList.add('active');
     }
 
     function updateFileName(input, displayId) {
         const display = document.getElementById(displayId);
-        if (input.files.length > 0) {
-            display.innerText = input.files[0].name;
-        } else {
-            display.innerText = "";
-        }
+        if (!display) return;
+        display.innerText = input.files.length > 0 ? `Selected: ${input.files[0].name} (${(input.files[0].size/1024).toFixed(1)} KB)` : '';
     }
 
     function setBtnLoading(btnId, isLoading) {
         const btn = document.getElementById(btnId);
-        if (isLoading) {
-            btn.classList.add('loading');
-            btn.disabled = true;
-        } else {
-            btn.classList.remove('loading');
-            btn.disabled = false;
-        }
+        if (!btn) return;
+        btn.disabled = isLoading;
+        isLoading ? btn.classList.add('loading') : btn.classList.remove('loading');
     }
 
     // ==========================================
-    // 1A. IMAGE STEGO LOGIC
+    // 1A. IMAGE STEGANOGRAPHY (LSB)
     // ==========================================
     async function getCanvasFromImage(file) {
         return new Promise((resolve, reject) => {
@@ -346,7 +612,7 @@
                 URL.revokeObjectURL(url);
                 resolve({ ctx, canvas, imgData: ctx.getImageData(0, 0, canvas.width, canvas.height) });
             };
-            img.onerror = () => reject(new Error("Failed to read image."));
+            img.onerror = () => reject(new Error("Failed to read image carrier."));
             img.src = url;
         });
     }
@@ -361,18 +627,15 @@
         }
 
         setBtnLoading('img-enc-btn', true);
-        
         try {
-            // 1. Encrypt Data
             const salt = crypto.getRandomValues(new Uint8Array(16));
             const iv = crypto.getRandomValues(new Uint8Array(12));
             const key = await Aegis.deriveKey(pass, salt);
             
             const encodedText = new TextEncoder().encode(text);
-            const ciphertextBuffer = await crypto.subtle.encrypt({name: "AES-GCM", iv: iv}, key, encodedText);
+            const ciphertextBuffer = await crypto.subtle.encrypt({ name: "AES-GCM", iv: iv }, key, encodedText);
             const ciphertext = new Uint8Array(ciphertextBuffer);
 
-            // Structure: [Length 4B][Salt 16B][IV 12B][Ciphertext]
             const payloadLength = salt.length + iv.length + ciphertext.length;
             const fullPayload = new Uint8Array(4 + payloadLength);
             
@@ -380,21 +643,17 @@
             fullPayload[1] = (payloadLength >> 16) & 255;
             fullPayload[2] = (payloadLength >> 8) & 255;
             fullPayload[3] = payloadLength & 255;
-            
             fullPayload.set(salt, 4);
             fullPayload.set(iv, 20);
             fullPayload.set(ciphertext, 32);
 
             const bits = Aegis.bytesToBits(fullPayload);
-
-            // 2. Embed via Canvas
             const { ctx, canvas, imgData } = await getCanvasFromImage(file);
             const data = imgData.data;
 
-            // Capacity Check (RGB channels only)
             const capacity = Math.floor((data.length / 4) * 3);
             if (bits.length > capacity) {
-                throw new Error(`Payload too large! Need ${bits.length} bits, but image capacity is ${capacity} bits.`);
+                throw new Error(`Payload too large! Required: ${bits.length} bits, Image capacity: ${capacity} bits.`);
             }
 
             let bitIdx = 0;
@@ -406,7 +665,6 @@
 
             ctx.putImageData(imgData, 0, 0);
 
-            // 3. Output
             canvas.toBlob((blob) => {
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
@@ -414,7 +672,7 @@
                 a.download = `aegis_stego_${Date.now()}.png`;
                 a.click();
                 URL.revokeObjectURL(url);
-                Aegis.showStatus('img-enc-status', 'Success! Stego PNG generated and downloaded.', false);
+                Aegis.showStatus('img-enc-status', 'Success: Stego PNG generated and downloaded.');
                 Aegis.incrementOp();
             }, 'image/png');
 
@@ -434,14 +692,13 @@
         }
 
         setBtnLoading('img-dec-btn', true);
-        document.getElementById('img-dec-out').innerText = "Processing...";
+        document.getElementById('img-dec-out').innerText = "Processing extraction…";
 
         try {
             const { imgData } = await getCanvasFromImage(file);
             const data = imgData.data;
 
-            // 1. Extract 32-bit length
-            const lenBits =[];
+            const lenBits = [];
             let i = 0;
             while(lenBits.length < 32 && i < data.length) {
                 if ((i + 1) % 4 !== 0) lenBits.push(data[i] & 1);
@@ -452,136 +709,111 @@
             const payloadLength = (lenBytes[0] << 24) | (lenBytes[1] << 16) | (lenBytes[2] << 8) | lenBytes[3];
 
             if (payloadLength <= 0 || payloadLength > 50000000) {
-                throw new Error("Invalid payload length. Image may not contain stego data.");
+                throw new Error("Invalid payload header. Image does not contain valid stego data.");
             }
 
-            // 2. Extract Payload
-            const payloadBits =[];
+            const payloadBits = [];
             const targetBits = payloadLength * 8;
             while(payloadBits.length < targetBits && i < data.length) {
                 if ((i + 1) % 4 !== 0) payloadBits.push(data[i] & 1);
                 i++;
             }
 
-            if (payloadBits.length < targetBits) throw new Error("Image data is truncated.");
+            if (payloadBits.length < targetBits) throw new Error("Stego image data is corrupted or truncated.");
 
             const fullPayload = Aegis.bitsToBytes(payloadBits);
-            
-            // 3. Decrypt
             const salt = fullPayload.slice(0, 16);
             const iv = fullPayload.slice(16, 28);
             const ciphertext = fullPayload.slice(28);
 
             const key = await Aegis.deriveKey(pass, salt);
+            const decryptedBuffer = await crypto.subtle.decrypt({ name: "AES-GCM", iv: iv }, key, ciphertext);
+            const plaintext = new TextDecoder().decode(decryptedBuffer);
             
-            try {
-                const decryptedBuffer = await crypto.subtle.decrypt({name: "AES-GCM", iv: iv}, key, ciphertext);
-                const plaintext = new TextDecoder().decode(decryptedBuffer);
-                
-                document.getElementById('img-dec-out').innerText = plaintext;
-                Aegis.showStatus('img-dec-status', 'Success! Payload extracted and decrypted.', false);
-                Aegis.incrementOp();
-            } catch (decErr) {
-                throw new Error("Decryption failed. Incorrect password or corrupted data.");
-            }
+            document.getElementById('img-dec-out').innerText = plaintext;
+            Aegis.showStatus('img-dec-status', 'Success: Stego payload decrypted successfully.');
+            Aegis.incrementOp();
 
         } catch (err) {
-            document.getElementById('img-dec-out').innerText = "Awaiting decryption...";
-            Aegis.showStatus('img-dec-status', err.message, true);
+            document.getElementById('img-dec-out').innerText = "Decryption failed.";
+            Aegis.showStatus('img-dec-status', err.message || "Decryption failed. Incorrect password.", true);
         } finally {
             setBtnLoading('img-dec-btn', false);
         }
     }
 
     // ==========================================
-    // 1B & 1C. ZW UNICODE STEGO (Emoji & Text)
+    // 1B & 1C. ZERO-WIDTH UNICODE STEGANOGRAPHY
     // ==========================================
-    // Core ZW Logic
     function strToZW(str, char0, char1, marker) {
         const bytes = new TextEncoder().encode(str);
         const bits = Aegis.bytesToBits(bytes);
         let zwStr = marker;
-        for (let b of bits) {
-            zwStr += b === 0 ? char0 : char1;
-        }
+        for (let b of bits) zwStr += (b === 0 ? char0 : char1);
         zwStr += marker;
         return zwStr;
     }
 
     function zwToStr(stegoStr, char0, char1, marker) {
         const parts = stegoStr.split(marker);
-        if (parts.length < 3) throw new Error("No stego marker found in text.");
+        if (parts.length < 3) throw new Error("No concealed steganographic markers found.");
         
-        const payload = parts[1]; // Get string between markers
-        const bits =[];
-        for (let i=0; i<payload.length; i++) {
+        const payload = parts[1];
+        const bits = [];
+        for (let i = 0; i < payload.length; i++) {
             if (payload[i] === char0) bits.push(0);
             else if (payload[i] === char1) bits.push(1);
         }
-        
         const bytes = Aegis.bitsToBytes(bits);
         return new TextDecoder().decode(bytes);
     }
 
-    // Emoji specifics
-    const E_Z0 = '\u200C'; // ZWNJ
-    const E_Z1 = '\u200D'; // ZWJ
-    const E_MARK = '\u200B'; // ZWSP
-
+    const E_Z0 = '\u200C', E_Z1 = '\u200D', E_MARK = '\u200B';
     function execEmojiEncode() {
         const cover = document.getElementById('emj-enc-cover').value || '🛡️';
         const secret = document.getElementById('emj-enc-text').value;
-        if (!secret) return Aegis.showStatus('emj-enc-status', 'Secret text required.', true);
+        if (!secret) return Aegis.showStatus('emj-enc-status', 'Secret payload required.', true);
         
         const zw = strToZW(secret, E_Z0, E_Z1, E_MARK);
-        const result = cover + zw;
-        document.getElementById('emj-enc-out').innerText = result;
-        Aegis.showStatus('emj-enc-status', 'Success! Emojis generated.');
+        document.getElementById('emj-enc-out').innerText = cover + zw;
+        Aegis.showStatus('emj-enc-status', 'Success: Stego emoji generated.');
         Aegis.incrementOp();
     }
 
     function execEmojiDecode() {
         const input = document.getElementById('emj-dec-text').value;
-        if (!input) return Aegis.showStatus('emj-dec-status', 'Input required.', true);
-        
+        if (!input) return Aegis.showStatus('emj-dec-status', 'Input stego emojis required.', true);
         try {
             const secret = zwToStr(input, E_Z0, E_Z1, E_MARK);
             document.getElementById('emj-dec-out').innerText = secret;
-            Aegis.showStatus('emj-dec-status', 'Extracted successfully.');
+            Aegis.showStatus('emj-dec-status', 'Success: Secret revealed.');
             Aegis.incrementOp();
         } catch (e) {
             Aegis.showStatus('emj-dec-status', 'Extraction failed: ' + e.message, true);
         }
     }
 
-    // Text specifics
-    const T_Z0 = '\u2060'; // Word Joiner
-    const T_Z1 = '\u2062'; // Invisible Times
-    const T_MARK = '\u2063'; // Invisible Separator
-
+    const T_Z0 = '\u2060', T_Z1 = '\u2062', T_MARK = '\u2063';
     function execTextEncode() {
         let cover = document.getElementById('txt-enc-cover').value;
         const secret = document.getElementById('txt-enc-secret').value;
-        if (!cover || !secret) return Aegis.showStatus('txt-enc-status', 'Both fields required.', true);
+        if (!cover || !secret) return Aegis.showStatus('txt-enc-status', 'Cover and secret text required.', true);
         
-        // Inject after first character to prevent stripping in some cases
         const firstChar = cover.charAt(0);
         const rest = cover.slice(1);
-        
         const zw = strToZW(secret, T_Z0, T_Z1, T_MARK);
         document.getElementById('txt-enc-out').innerText = firstChar + zw + rest;
-        Aegis.showStatus('txt-enc-status', 'Success! Text generated.');
+        Aegis.showStatus('txt-enc-status', 'Success: Stego text generated.');
         Aegis.incrementOp();
     }
 
     function execTextDecode() {
         const input = document.getElementById('txt-dec-input').value;
-        if (!input) return Aegis.showStatus('txt-dec-status', 'Input required.', true);
-        
+        if (!input) return Aegis.showStatus('txt-dec-status', 'Input stego text required.', true);
         try {
             const secret = zwToStr(input, T_Z0, T_Z1, T_MARK);
             document.getElementById('txt-dec-out').innerText = secret;
-            Aegis.showStatus('txt-dec-status', 'Extracted successfully.');
+            Aegis.showStatus('txt-dec-status', 'Success: Payload extracted.');
             Aegis.incrementOp();
         } catch (e) {
             Aegis.showStatus('txt-dec-status', 'Extraction failed: ' + e.message, true);
@@ -589,42 +821,36 @@
     }
 
     // ==========================================
-    // 1D. AUDIO STEGO (WAV LSB)
+    // 1D. AUDIO STEGANOGRAPHY (WAV PCM LSB)
     // ==========================================
     function getWavDataChunk(buffer) {
         const view = new DataView(buffer);
-        let offset = 12; // Skip RIFF and WAVE
-        
-        // Safety check
-        if (view.getUint32(0, false) !== 0x52494646) throw new Error("Not a valid RIFF file"); // 'RIFF'
-        if (view.getUint32(8, false) !== 0x57415645) throw new Error("Not a valid WAVE file"); // 'WAVE'
+        if (view.getUint32(0, false) !== 0x52494646) throw new Error("Invalid RIFF header.");
+        if (view.getUint32(8, false) !== 0x57415645) throw new Error("Invalid WAVE format.");
 
+        let offset = 12;
         while (offset < view.byteLength) {
             const chunkId = view.getUint32(offset, false);
             const chunkSize = view.getUint32(offset + 4, true);
-            
             if (chunkId === 0x64617461) { // 'data'
                 return { offset: offset + 8, size: chunkSize };
             }
             offset += 8 + chunkSize;
         }
-        throw new Error("Could not locate PCM data chunk in WAV.");
+        throw new Error("Could not locate PCM 'data' chunk in WAV.");
     }
 
     async function execAudioEncode() {
         const file = document.getElementById('aud-enc-file').files[0];
         const text = document.getElementById('aud-enc-text').value;
-
-        if (!file || !text) return Aegis.showStatus('aud-enc-status', 'WAV file and secret message required.', true);
+        if (!file || !text) return Aegis.showStatus('aud-enc-status', 'WAV file and message required.', true);
 
         setBtnLoading('aud-enc-btn', true);
-
         try {
             const arrayBuffer = await file.arrayBuffer();
             const { offset, size } = getWavDataChunk(arrayBuffer);
             const view = new Uint8Array(arrayBuffer, offset, size);
 
-            // Construct payload: [Length 4B] + TextBytes
             const textBytes = new TextEncoder().encode(text);
             const payload = new Uint8Array(4 + textBytes.length);
             const len = textBytes.length;
@@ -635,17 +861,12 @@
             payload.set(textBytes, 4);
 
             const bits = Aegis.bytesToBits(payload);
+            if (bits.length > view.length) throw new Error(`Audio capacity exceeded. Needed: ${bits.length} samples.`);
 
-            if (bits.length > view.length) {
-                throw new Error("Payload is too large for this audio file.");
-            }
-
-            // Embed into LSB of raw PCM data
             for (let i = 0; i < bits.length; i++) {
                 view[i] = (view[i] & ~1) | bits[i];
             }
 
-            // Create new WAV file Blob
             const newBlob = new Blob([arrayBuffer], { type: 'audio/wav' });
             const url = URL.createObjectURL(newBlob);
             const a = document.createElement('a');
@@ -654,9 +875,8 @@
             a.click();
             URL.revokeObjectURL(url);
             
-            Aegis.showStatus('aud-enc-status', 'Success! Stego WAV generated and downloaded.', false);
+            Aegis.showStatus('aud-enc-status', 'Success: Stego WAV generated & downloaded.');
             Aegis.incrementOp();
-
         } catch (err) {
             Aegis.showStatus('aud-enc-status', err.message, true);
         } finally {
@@ -669,30 +889,23 @@
         if (!file) return Aegis.showStatus('aud-dec-status', 'Stego WAV file required.', true);
 
         setBtnLoading('aud-dec-btn', true);
-        document.getElementById('aud-dec-out').innerText = "Processing...";
-
+        document.getElementById('aud-dec-out').innerText = "Processing audio samples…";
         try {
             const arrayBuffer = await file.arrayBuffer();
             const { offset, size } = getWavDataChunk(arrayBuffer);
             const view = new Uint8Array(arrayBuffer, offset, size);
 
-            // Extract length (first 32 bits)
-            const lenBits =[];
-            for(let i=0; i<32; i++) {
-                lenBits.push(view[i] & 1);
-            }
+            const lenBits = [];
+            for (let i = 0; i < 32; i++) lenBits.push(view[i] & 1);
             const lenBytes = Aegis.bitsToBytes(lenBits);
             const payloadLength = (lenBytes[0] << 24) | (lenBytes[1] << 16) | (lenBytes[2] << 8) | lenBytes[3];
 
-            if (payloadLength <= 0 || payloadLength > 10000000) {
-                throw new Error("Invalid stego payload length detected.");
-            }
+            if (payloadLength <= 0 || payloadLength > 10000000) throw new Error("No steganographic payload detected.");
 
-            // Extract payload
-            const payloadBits =[];
+            const payloadBits = [];
             const targetBits = 32 + (payloadLength * 8);
-            for (let i=32; i < targetBits; i++) {
-                if (i >= view.length) throw new Error("Audio data truncated.");
+            for (let i = 32; i < targetBits; i++) {
+                if (i >= view.length) throw new Error("Audio PCM data truncated.");
                 payloadBits.push(view[i] & 1);
             }
 
@@ -700,17 +913,340 @@
             const text = new TextDecoder().decode(textBytes);
             
             document.getElementById('aud-dec-out').innerText = text;
-            Aegis.showStatus('aud-dec-status', 'Payload extracted successfully.', false);
+            Aegis.showStatus('aud-dec-status', 'Success: Audio payload extracted.');
             Aegis.incrementOp();
-
         } catch (err) {
-            document.getElementById('aud-dec-out').innerText = "Awaiting decryption...";
+            document.getElementById('aud-dec-out').innerText = "Extraction failed.";
             Aegis.showStatus('aud-dec-status', err.message, true);
         } finally {
             setBtnLoading('aud-dec-btn', false);
         }
     }
-</script>
 
+    // ==========================================
+    // 1E. LINGUISTIC / MARKOV DISGUISER ENGINE
+    // ==========================================
+    // Discrete Lexicon Grammars (16 words = 4 bits, 8 words = 3 bits)
+    const LINGUISTIC_LEXICONS = {
+        corp: {
+            transitions: ["Recently", "Currently", "Meanwhile", "Furthermore", "Additionally", "Consequently", "Specifically", "Evidently", "Consistently", "Subsequently", "Invariably", "Notably", "Predictably", "Typically", "Accordingly", "Ultimately"], // 16 -> 4 bits
+            subjectAdj: ["our core", "the distributed", "each enterprise", "a modern", "our internal", "the primary", "every agile", "an automated", "our scalable", "the central", "the underlying", "a unified", "the resilient", "our microservice", "the dedicated", "an integrated"], // 16 -> 4 bits
+            subjectNoun: ["infrastructure", "platform", "cluster", "pipeline", "architecture", "framework", "database", "repository", "deployment", "service", "workstation", "controller", "engine", "middleware", "stack", "gateway"], // 16 -> 4 bits
+            verbs: ["optimizes", "processes", "orchestrates", "monitors", "accelerates", "maintains", "synchronizes", "verifies", "balances", "enhances", "validates", "aggregates", "streamlines", "consolidates", "secures", "manages"], // 16 -> 4 bits
+            objectAdj: ["mission-critical", "high-throughput", "decentralized", "containerized", "fault-tolerant", "low-latency", "real-time", "production-grade", "asynchronous", "serverless", "multi-tenant", "redundant", "dynamic", "cloud-native", "encrypted", "stateless"], // 16 -> 4 bits
+            objectNoun: ["data streams", "cloud workloads", "network traffic", "system logs", "storage pools", "api requests", "queue events", "compute jobs", "cache layers", "telemetry nodes", "batch routines", "virtual threads", "state metrics", "protocol packets", "auth sessions", "audit trails"], // 16 -> 4 bits
+            prepositions: ["across", "within", "throughout", "alongside", "during", "towards", "inside", "between"], // 8 -> 3 bits
+            targetAdj: ["global", "internal", "production", "remote", "regional", "hybrid", "staging", "isolated", "federated", "edge", "private", "virtual", "clustered", "primary", "secondary", "secure"], // 16 -> 4 bits
+            targetNoun: ["environments.", "deployments.", "frameworks.", "clusters.", "networks.", "infrastructures.", "ecosystems.", "datacenters.", "subsystems.", "fabrics.", "appliances.", "perimeters.", "topologies.", "registries.", "foundations.", "workspaces."] // 16 -> 4 bits
+        },
+        fin: {
+            transitions: ["Historically", "Presently", "Meanwhile", "Furthermore", "Accordingly", "Significantly", "Evidently", "Consequently", "Noticeably", "Inevitably", "Predictably", "Broadly", "Interestingly", "Gradually", "Undeniably", "Concurrently"],
+            subjectAdj: ["our domestic", "the global", "each foreign", "a diversified", "the corporate", "a institutional", "the macroeconomic", "every sovereign", "the strategic", "a quantitative", "the investment", "our capital", "the liquidity", "an equity", "the commercial", "a hedge"],
+            subjectNoun: ["portfolio", "sector", "index", "fund", "treasury", "holding", "market", "exchange", "consortium", "instrument", "asset", "venture", "entity", "syndicate", "subsidiary", "trust"],
+            verbs: ["hedges", "allocates", "leverages", "rebalances", "liquidates", "diversifies", "stabilizes", "evaluates", "amortizes", "underwrites", "generates", "positions", "compounds", "safeguards", "collateralizes", "yields"],
+            objectAdj: ["high-yield", "risk-adjusted", "fixed-income", "inflation-protected", "short-term", "capital-backed", "undervalued", "premium-grade", "derivative-linked", "recurrent", "liquid", "dividend-bearing", "tax-advantaged", "floating-rate", "speculative", "convertible"],
+            objectNoun: ["cash reserves", "sovereign bonds", "equity holdings", "credit facilities", "securities trades", "debt covenants", "currency flows", "margin accounts", "commodity baskets", "structured notes", "annuity pools", "real assets", "capital tranches", "balance sheets", "swap agreements", "escrow deposits"],
+            prepositions: ["across", "within", "throughout", "alongside", "during", "towards", "inside", "between"],
+            targetAdj: ["emerging", "developed", "regulated", "volatile", "mature", "offshore", "sovereign", "private", "institutional", "decentralized", "primary", "secondary", "reputable", "global", "regional", "interbank"],
+            targetNoun: ["markets.", "jurisdictions.", "exchanges.", "economies.", "territories.", "clearinghouses.", "institutions.", "indexes.", "sectors.", "arenas.", "exposures.", "regimes.", "settlements.", "structures.", "portfolios.", "reserves."]
+        },
+        scifi: {
+            transitions: ["Immediately", "Meanwhile", "Concurrently", "Furthermore", "Subsequently", "Unexpectedly", "Suddenly", "Periodically", "Steadily", "Briefly", "Naturally", "Instantly", "Gradually", "Silently", "Duly", "Ultimately"],
+            subjectAdj: ["the orbital", "our quantum", "each deep-space", "a sub-light", "the planetary", "a gravitational", "our tactical", "an interstellar", "the long-range", "a hyper-spatial", "the exploratory", "our dimensional", "the navigational", "an anomalous", "the automated", "a cybernetic"],
+            subjectNoun: ["vessel", "array", "probe", "station", "cruiser", "beacon", "relay", "colony", "telemetry", "dreadnought", "sensor", "outpost", "transceiver", "module", "capsule", "shuttle"],
+            verbs: ["scans", "calibrates", "projects", "discharges", "stabilizes", "detects", "modulates", "accelerates", "recharges", "analyzes", "deflects", "harmonizes", "amplifies", "shields", "neutralizes", "navigates"],
+            objectAdj: ["chronal", "dark-matter", "tachyon", "sub-atomic", "plasma-based", "graviton", "anti-matter", "electromagnetic", "hyperspace", "neutrino", "coherent", "resonance", "ionized", "warp-level", "zero-point", "particle"],
+            objectNoun: ["radiation bursts", "energy pulses", "spatial vectors", "anomaly fields", "frequency waves", "flux signatures", "magnetic storms", "propulsion trails", "singularity gates", "sensor echoes", "matter streams", "barrier grids", "quantum emissions", "rift nodes", "plasma conduits", "containment rings"],
+            prepositions: ["across", "within", "throughout", "alongside", "during", "towards", "inside", "between"],
+            targetAdj: ["uncharted", "hostile", "extraterrestrial", "nebular", "interplanetary", "stellar", "outer", "deep-core", "sub-space", "planetary", "distant", "void-level", "exoplanetary", "galactic", "hyper-dimensional", "isolated"],
+            targetNoun: ["sectors.", "quadrants.", "systems.", "horizons.", "clusters.", "realms.", "voids.", "expanses.", "zones.", "corridors.", "latitudes.", "spheres.", "trajectories.", "boundaries.", "anomalies.", "coordinates."]
+        }
+    };
+
+    // 16-bit CRC for fast bitstream integrity
+    function computeCrc16(data) {
+        let crc = 0xFFFF;
+        for (let i = 0; i < data.length; i++) {
+            crc ^= data[i];
+            for (let j = 0; j < 8; j++) {
+                if ((crc & 1) !== 0) crc = (crc >> 1) ^ 0xA001;
+                else crc = crc >> 1;
+            }
+        }
+        return crc & 0xFFFF;
+    }
+
+    function updateLinguisticMetrics() {
+        const text = document.getElementById('ling-enc-text').value;
+        const pass = document.getElementById('ling-enc-pass').value;
+        const rawBytes = new TextEncoder().encode(text).length;
+        
+        let totalBytes = 0;
+        if (rawBytes > 0) {
+            // [Flag 1B] + (If Pass: Salt 16B + IV 12B + Tag 16B + Ciphertext) + [Len 2B] + [CRC 2B]
+            const isEnc = pass.length > 0;
+            totalBytes = 1 + (isEnc ? (16 + 12 + 16 + rawBytes) : rawBytes) + 2 + 2;
+        }
+        const totalBits = totalBytes * 8;
+        // Each sentence carries: 4 + 4 + 4 + 4 + 4 + 4 + 3 + 4 + 4 = 35 bits
+        const sentences = Math.ceil(totalBits / 35);
+
+        document.getElementById('lm-raw').innerText = `${rawBytes} B`;
+        document.getElementById('lm-bits').innerText = `${totalBits} bits`;
+        document.getElementById('lm-sentences').innerText = `${sentences} ${sentences === 1 ? 'sentence' : 'sentences'}`;
+    }
+
+    async function execLinguisticEncode() {
+        const text = document.getElementById('ling-enc-text').value;
+        const pass = document.getElementById('ling-enc-pass').value;
+        const domainKey = document.getElementById('ling-domain').value;
+
+        if (!text) return Aegis.showStatus('ling-enc-status', 'Secret payload text is required.', true);
+
+        setBtnLoading('ling-enc-btn', true);
+        document.getElementById('ling-enc-out').innerText = 'Generating cover text…';
+
+        try {
+            let payloadBytes;
+            let isEncrypted = false;
+            let salt = new Uint8Array(0);
+            let iv = new Uint8Array(0);
+
+            if (pass) {
+                isEncrypted = true;
+                salt = crypto.getRandomValues(new Uint8Array(16));
+                iv = crypto.getRandomValues(new Uint8Array(12));
+                const key = await Aegis.deriveKey(pass, salt);
+                const encBuf = await crypto.subtle.encrypt({ name: "AES-GCM", iv: iv }, key, new TextEncoder().encode(text));
+                payloadBytes = new Uint8Array(encBuf);
+            } else {
+                payloadBytes = new TextEncoder().encode(text);
+            }
+
+            // Construct Binary Package:
+            // [Magic Byte: 0xA5 (1B)][Flags: 0x01 if Encrypted (1B)][PayloadLen (2B BE)][Payload][Salt 16B (if enc)][IV 12B (if enc)][CRC16 (2B BE)]
+            const pLen = payloadBytes.length;
+            const pkgLen = 1 + 1 + 2 + pLen + (isEncrypted ? 28 : 0) + 2;
+            const pkg = new Uint8Array(pkgLen);
+            
+            pkg[0] = 0xA5; // Magic identifier
+            pkg[1] = isEncrypted ? 0x01 : 0x00;
+            pkg[2] = (pLen >> 8) & 0xFF;
+            pkg[3] = pLen & 0xFF;
+            pkg.set(payloadBytes, 4);
+
+            let offset = 4 + pLen;
+            if (isEncrypted) {
+                pkg.set(salt, offset);
+                pkg.set(iv, offset + 16);
+                offset += 28;
+            }
+
+            const crc = computeCrc16(pkg.slice(0, offset));
+            pkg[offset] = (crc >> 8) & 0xFF;
+            pkg[offset + 1] = crc & 0xFF;
+
+            const bits = Aegis.bytesToBits(pkg);
+            const lexicon = LINGUISTIC_LEXICONS[domainKey] || LINGUISTIC_LEXICONS.corp;
+
+            // Slot bits definitions: total 35 bits / sentence
+            const slotDefs = [
+                { key: 'transitions', bits: 4 },
+                { key: 'subjectAdj',  bits: 4 },
+                { key: 'subjectNoun', bits: 4 },
+                { key: 'verbs',        bits: 4 },
+                { key: 'objectAdj',   bits: 4 },
+                { key: 'objectNoun',  bits: 4 },
+                { key: 'prepositions',bits: 3 },
+                { key: 'targetAdj',   bits: 4 },
+                { key: 'targetNoun',  bits: 4 }
+            ];
+
+            let bitIdx = 0;
+            const sentences = [];
+
+            while (bitIdx < bits.length) {
+                const words = [];
+                for (let s = 0; s < slotDefs.length; s++) {
+                    const { key, bits: bCount } = slotDefs[s];
+                    let val = 0;
+                    for (let b = 0; b < bCount; b++) {
+                        const bit = bitIdx < bits.length ? bits[bitIdx++] : Math.floor(Math.random() * 2); // Pseudo-random padding on last sentence
+                        val = (val << 1) | bit;
+                    }
+                    const word = lexicon[key][val];
+                    if (s === 0) words.push(word + ",");
+                    else words.push(word);
+                }
+                sentences.push(words.join(" "));
+            }
+
+            // Paragraph formatting
+            let paragraphText = "";
+            for (let i = 0; i < sentences.length; i++) {
+                paragraphText += sentences[i] + " ";
+                if ((i + 1) % 4 === 0 && i !== sentences.length - 1) {
+                    paragraphText += "\n\n";
+                }
+            }
+
+            document.getElementById('ling-enc-out').innerText = paragraphText.trim();
+            Aegis.showStatus('ling-enc-status', 'Success: Innocent cover text generated cleanly.');
+            Aegis.incrementOp();
+
+        } catch (err) {
+            Aegis.showStatus('ling-enc-status', 'Disguise failed: ' + err.message, true);
+        } finally {
+            setBtnLoading('ling-enc-btn', false);
+        }
+    }
+
+    async function execLinguisticDecode() {
+        const coverText = document.getElementById('ling-dec-input').value.trim();
+        const pass = document.getElementById('ling-dec-pass').value;
+
+        if (!coverText) return Aegis.showStatus('ling-dec-status', 'Cover text is required.', true);
+
+        setBtnLoading('ling-dec-btn', true);
+        document.getElementById('ling-dec-out').innerText = 'Reconstructing payload from linguistic model…';
+
+        try {
+            // Find best matching lexicon
+            let bestDomain = 'corp';
+            let bestMatches = 0;
+            const normText = coverText.toLowerCase();
+
+            for (const [dom, lex] of Object.entries(LINGUISTIC_LEXICONS)) {
+                let m = 0;
+                lex.subjectNoun.forEach(w => { if (normText.includes(w.toLowerCase())) m++; });
+                lex.objectNoun.forEach(w => { if (normText.includes(w.toLowerCase())) m++; });
+                if (m > bestMatches) { bestMatches = m; bestDomain = dom; }
+            }
+
+            const lexicon = LINGUISTIC_LEXICONS[bestDomain];
+            const slotDefs = [
+                { key: 'transitions', bits: 4 },
+                { key: 'subjectAdj',  bits: 4 },
+                { key: 'subjectNoun', bits: 4 },
+                { key: 'verbs',        bits: 4 },
+                { key: 'objectAdj',   bits: 4 },
+                { key: 'objectNoun',  bits: 4 },
+                { key: 'prepositions',bits: 3 },
+                { key: 'targetAdj',   bits: 4 },
+                { key: 'targetNoun',  bits: 4 }
+            ];
+
+            // Normalize text into sentence tokens
+            const sentenceMatches = coverText.split(/\.\s+|\.\n+/).map(s => s.trim()).filter(s => s.length > 0);
+            const extractedBits = [];
+
+            for (let sent of sentenceMatches) {
+                sent = sent.replace(/[,\.]/g, '').trim();
+                const words = sent.split(/\s+/);
+                
+                // Match each word against slot dictionary
+                let wIdx = 0;
+                for (let s = 0; s < slotDefs.length && wIdx < words.length; s++) {
+                    const { key, bits: bCount } = slotDefs[s];
+                    const dict = lexicon[key];
+                    
+                    let foundIndex = -1;
+                    // Multi-word phrase check (up to 2 words per slot)
+                    if (wIdx + 1 < words.length) {
+                        const pair = (words[wIdx] + " " + words[wIdx+1]).toLowerCase();
+                        foundIndex = dict.findIndex(dw => dw.replace(/[,\.]/g, '').toLowerCase() === pair);
+                        if (foundIndex !== -1) wIdx += 2;
+                    }
+                    if (foundIndex === -1) {
+                        const single = words[wIdx].toLowerCase();
+                        foundIndex = dict.findIndex(dw => dw.replace(/[,\.]/g, '').toLowerCase() === single);
+                        if (foundIndex !== -1) wIdx += 1;
+                    }
+
+                    if (foundIndex !== -1) {
+                        for (let b = bCount - 1; b >= 0; b--) {
+                            extractedBits.push((foundIndex >> b) & 1);
+                        }
+                    }
+                }
+            }
+
+            const rawBytes = Aegis.bitsToBytes(extractedBits);
+            if (rawBytes.length < 6 || rawBytes[0] !== 0xA5) {
+                throw new Error("No Aegis linguistic steganography package detected in text.");
+            }
+
+            const isEncrypted = (rawBytes[1] === 0x01);
+            const payloadLen = (rawBytes[2] << 8) | rawBytes[3];
+            const headerOffset = 4;
+            const totalExpected = headerOffset + payloadLen + (isEncrypted ? 28 : 0) + 2;
+
+            if (rawBytes.length < totalExpected) {
+                throw new Error("Linguistic cover text is incomplete or partially truncated.");
+            }
+
+            const payloadBytes = rawBytes.slice(headerOffset, headerOffset + payloadLen);
+            let cursor = headerOffset + payloadLen;
+
+            let salt, iv;
+            if (isEncrypted) {
+                salt = rawBytes.slice(cursor, cursor + 16);
+                iv = rawBytes.slice(cursor + 16, cursor + 28);
+                cursor += 28;
+            }
+
+            const expectedCrc = (rawBytes[cursor] << 8) | rawBytes[cursor + 1];
+            const computedCrc = computeCrc16(rawBytes.slice(0, cursor));
+
+            if (expectedCrc !== computedCrc) {
+                throw new Error("Integrity check failed. Cover text words may have been altered.");
+            }
+
+            let plainText = "";
+            if (isEncrypted) {
+                if (!pass) throw new Error("This payload is AES-encrypted. Password required.");
+                const key = await Aegis.deriveKey(pass, salt);
+                const decBuf = await crypto.subtle.decrypt({ name: "AES-GCM", iv: iv }, key, payloadBytes);
+                plainText = new TextDecoder().decode(decBuf);
+            } else {
+                plainText = new TextDecoder().decode(payloadBytes);
+            }
+
+            document.getElementById('ling-dec-out').innerText = plainText;
+            Aegis.showStatus('ling-dec-status', 'Success: Plaintext reconstructed and verified.');
+            Aegis.incrementOp();
+
+        } catch (err) {
+            document.getElementById('ling-dec-out').innerText = "Reveal failed.";
+            Aegis.showStatus('ling-dec-status', err.message, true);
+        } finally {
+            setBtnLoading('ling-dec-btn', false);
+        }
+    }
+
+    function sendToLinguisticDecode() {
+        const out = document.getElementById('ling-enc-out').innerText;
+        if (!out || out.startsWith('Innocent cover')) return;
+        document.getElementById('ling-dec-input').value = out;
+        switchMode('ling', 'decode');
+    }
+
+    // Drag-and-drop registration
+    ['img-enc', 'img-dec', 'aud-enc', 'aud-dec'].forEach(id => {
+        const el = document.getElementById(`${id}-drop`);
+        if (!el) return;
+        el.addEventListener('dragover', (e) => { e.preventDefault(); el.classList.add('dragover'); });
+        el.addEventListener('dragleave', () => el.classList.remove('dragover'));
+        el.addEventListener('drop', (e) => {
+            e.preventDefault();
+            el.classList.remove('dragover');
+            const fileInput = document.getElementById(`${id}-file`);
+            if (e.dataTransfer.files.length > 0) {
+                fileInput.files = e.dataTransfer.files;
+                updateFileName(fileInput, `${id}-filename`);
+            }
+        });
+    });
+</script>
 </body>
 </html>
